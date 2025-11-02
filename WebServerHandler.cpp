@@ -550,8 +550,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
     }
 
-    // Poll every 200ms
-    setInterval(fetchData, 200);
+    // Poll every 1000ms to reduce socket churn
+    setInterval(fetchData, 1000);
     fetchData();
   </script>
 </body>
