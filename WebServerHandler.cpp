@@ -258,11 +258,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     /* Dashboard Grid */
     #dashboard {
       display: grid;
-      grid-template-columns: 280px 1fr;
-      grid-template-rows: auto auto auto;
-      gap: 15px;
+      grid-template-columns: 260px 1fr 1fr 1fr;
+      grid-template-rows: auto auto auto auto;
+      grid-template-areas:
+        "esp radar radar radar"
+        "buttons radar radar radar"
+        "settings target1 target2 target3"
+        "warnings warnings warnings warnings";
+      gap: 16px;
       max-width: 1600px;
       margin: 0 auto;
+      align-items: stretch;
     }
 
     /* Card Base Style - Apple Glassmorphism */
@@ -290,48 +296,43 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
     /* ESP Info Box */
     #esp-info {
-      grid-row: 1;
+      grid-area: esp;
       background: var(--esp-info-gradient);
     }
 
     /* Radar Canvas */
     canvas {
-      grid-row: 1;
-      grid-column: 2;
+      grid-area: radar;
       background: var(--canvas-bg);
       border-radius: 12px;
       width: 100%;
       height: 100%;
       border: 1px solid var(--canvas-border);
+      min-height: 420px;
     }
 
     /* Control Buttons */
     #control-buttons {
+      grid-area: buttons;
       display: flex;
       flex-direction: column;
       gap: 12px;
-      grid-row: 2;
     }
 
     /* Radar Settings */
     #radar-settings {
-      grid-row: 3;
+      grid-area: settings;
       background: var(--radar-settings-gradient);
     }
 
     /* Target Info */
-    #target-info {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 15px;
-      grid-row: 2;
-      grid-column: 2;
-    }
+    #target1-box { grid-area: target1; }
+    #target2-box { grid-area: target2; }
+    #target3-box { grid-area: target3; }
 
     /* Warnings */
     #warnings {
-      grid-row: 3;
-      grid-column: 2;
+      grid-area: warnings;
       background: var(--warnings-gradient);
     }
     /* Apple Buttons */
@@ -415,6 +416,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     /* Target Boxes */
     .target-box {
       background: var(--target-box-gradient);
+      height: 100%;
     }
     .target-data {
       font-size: 13px;
@@ -453,17 +455,21 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
       #dashboard {
         grid-template-columns: 1fr;
-        grid-template-rows: auto;
+        grid-template-areas:
+          "radar"
+          "esp"
+          "target1"
+          "target2"
+          "target3"
+          "settings"
+          "buttons"
+          "warnings";
       }
-      #radar-container {
-        grid-row: 2;
+      canvas {
+        min-height: 300px;
       }
-      #target-info {
-        grid-template-columns: 1fr;
-        grid-column: 1;
-      }
-      #warnings {
-        grid-column: 1;
+      #control-buttons {
+        flex-direction: column;
       }
     }
   </style>
@@ -509,19 +515,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     </div>
 
     <!-- Target Informations -->
-    <div id="target-info">
-      <div id="target1-box" class="target-box card">
-        <h3>Target 1</h3>
-        <div id="target1-data" class="target-data">No target detected</div>
-      </div>
-      <div id="target2-box" class="target-box card">
-        <h3>Target 2</h3>
-        <div id="target2-data" class="target-data">No target detected</div>
-      </div>
-      <div id="target3-box" class="target-box card">
-        <h3>Target 3</h3>
-        <div id="target3-data" class="target-data">No target detected</div>
-      </div>
+    <div id="target1-box" class="target-box card">
+      <h3>Target 1</h3>
+      <div id="target1-data" class="target-data">No target detected</div>
+    </div>
+    <div id="target2-box" class="target-box card">
+      <h3>Target 2</h3>
+      <div id="target2-data" class="target-data">No target detected</div>
+    </div>
+    <div id="target3-box" class="target-box card">
+      <h3>Target 3</h3>
+      <div id="target3-data" class="target-data">No target detected</div>
     </div>
 
     <!-- Warnings -->
