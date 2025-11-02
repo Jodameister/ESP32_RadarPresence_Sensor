@@ -17,8 +17,8 @@ struct SSEClient {
   bool active;
 };
 
-SSEClient sseClients[4];
-const int MAX_SSE_CLIENTS = 4;
+SSEClient sseClients[1];
+const int MAX_SSE_CLIENTS = 1;
 
 // Embedded HTML page
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
