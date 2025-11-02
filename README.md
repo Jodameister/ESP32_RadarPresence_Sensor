@@ -92,7 +92,7 @@ Published every 10 seconds:
 {
   "fwVersion": "v1.7",
   "uptime_min": 42,
-  "resetReason": 1,
+  "resetReason": "software",
   "rssi": -67,
   "channel": 6,
   "heap_free": 234567,

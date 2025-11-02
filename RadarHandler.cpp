@@ -6,6 +6,22 @@
 #include <ArduinoJson.h>
 #include <esp_system.h>
 
+static const char* resetReasonToString(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_POWERON:    return "power-on";
+    case ESP_RST_EXT:        return "external";
+    case ESP_RST_SW:         return "software";
+    case ESP_RST_PANIC:      return "panic";
+    case ESP_RST_INT_WDT:    return "int-watchdog";
+    case ESP_RST_TASK_WDT:   return "task-watchdog";
+    case ESP_RST_WDT:        return "watchdog";
+    case ESP_RST_DEEPSLEEP:  return "deep-sleep";
+    case ESP_RST_BROWNOUT:   return "brown-out";
+    case ESP_RST_SDIO:       return "sdio";
+    default:                 return "unknown";
+  }
+}
+
 void enableMultiTargetMode() {
   Serial1.write(multiTargetCmd, sizeof(multiTargetCmd));
 }
@@ -334,7 +350,7 @@ void publishStatus() {
   StaticJsonDocument<512> doc;
   doc["fwVersion"]      = FW_VERSION;
   doc["uptime_min"]     = millis()/60000;
-  doc["resetReason"]    = esp_reset_reason();
+  doc["resetReason"]    = resetReasonToString(esp_reset_reason());
   doc["ip"]             = WiFi.localIP().toString();
   doc["rssi"]           = WiFi.RSSI();
   doc["channel"]        = WiFi.channel();

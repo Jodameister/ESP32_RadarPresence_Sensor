@@ -10,6 +10,22 @@
 
 WebServer webServer(80);
 
+static const char* resetReasonToString(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_POWERON:    return "power-on";
+    case ESP_RST_EXT:        return "external";
+    case ESP_RST_SW:         return "software";
+    case ESP_RST_PANIC:      return "panic";
+    case ESP_RST_INT_WDT:    return "int-watchdog";
+    case ESP_RST_TASK_WDT:   return "task-watchdog";
+    case ESP_RST_WDT:        return "watchdog";
+    case ESP_RST_DEEPSLEEP:  return "deep-sleep";
+    case ESP_RST_BROWNOUT:   return "brown-out";
+    case ESP_RST_SDIO:       return "sdio";
+    default:                 return "unknown";
+  }
+}
+
 // Track SSE clients
 struct SSEClient {
   WiFiClient client;
@@ -368,7 +384,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
     function formatResetReason(code) {
       if (code === undefined || code === null) return '-';
-      return resetReasonMap[code] || ('Code ' + code);
+      if (typeof code === 'string') return code;
+      return resetReasonMap[code] || ('code ' + code);
     }
 
     function sendCommand(cmd) {
@@ -609,7 +626,7 @@ static size_t buildRadarJson(char* buffer, size_t bufsize) {
   for (auto &t: smoothed) if (t.presence) doc["targetCount"] = doc["targetCount"].as<int>() + 1;
 
   doc["fwVersion"] = FW_VERSION;
-  doc["resetReason"] = esp_reset_reason();
+  doc["resetReason"] = resetReasonToString(esp_reset_reason());
   doc["temp_c"] = temperatureRead();
   doc["radarSerialRestarts"] = radarSerialRestartCount;
   doc["range_m"] = g_maxRangeMeters;
