@@ -36,7 +36,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       background: #000000;
       color: #f5f5f7;
       margin: 0;
-      padding: 20px;
+      padding: 12px 20px;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
@@ -343,7 +343,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     const MAX_RANGE = 8; // Maximale Radar-Reichweite
     const PIXELS_PER_METER = 50;
     const CENTER_X = 400;
-    const CENTER_Y = 50;
+    const CENTER_Y = 30;
 
     const resetReasonMap = {
       1: 'POWERON_RESET',
