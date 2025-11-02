@@ -346,6 +346,7 @@ void publishStatus() {
   doc["mqttState"]      = mqttClient.state();
   doc["wifiReconnects"] = wifiReconnectCount;
   doc["radarTimeouts"]  = radarTimeoutCount;
+  doc["radarSerialRestarts"] = radarSerialRestartCount;
   doc["lastRadarDelta"] = millis() - lastRadarDataTime;
   doc["holdMs"]         = g_holdIntervalMs;
   doc["range_m"]        = g_maxRangeMeters;
