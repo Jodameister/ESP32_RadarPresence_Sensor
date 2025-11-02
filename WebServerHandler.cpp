@@ -286,7 +286,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <div class="info-item"><span class="info-label">Firmware:</span> <span id="fwVersion" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Reset Reason:</span> <span id="resetReason" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Temperatur:</span> <span id="temperature" class="info-value">-</span></div>
-      <div class="info-item"><span class="info-label">Radar Timeouts:</span> <span id="radarTimeouts" class="info-value">0</span></div>
       <div class="info-item"><span class="info-label">Radar Restarts:</span> <span id="radarSerialRestarts" class="info-value">0</span></div>
       <div class="info-item"><span class="info-label">IP:</span> <span id="ip" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Uptime:</span> <span id="uptime" class="info-value">0 min</span></div>
@@ -315,15 +314,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <!-- Target Informations -->
     <div id="target-info">
       <div id="target1-box" class="target-box card">
-        <h3>Target 1 Informations</h3>
+        <h3>Target 1</h3>
         <div id="target1-data" class="target-data">No target detected</div>
       </div>
       <div id="target2-box" class="target-box card">
-        <h3>Target 2 Informations</h3>
+        <h3>Target 2</h3>
         <div id="target2-data" class="target-data">No target detected</div>
       </div>
       <div id="target3-box" class="target-box card">
-        <h3>Target 3 Informations</h3>
+        <h3>Target 3</h3>
         <div id="target3-data" class="target-data">No target detected</div>
       </div>
     </div>
@@ -480,7 +479,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       document.getElementById('resetReason').textContent = formatResetReason(data.resetReason);
       const temp = data.temp_c;
       document.getElementById('temperature').textContent = (typeof temp === 'number' ? temp.toFixed(1) + ' °C' : '-');
-      document.getElementById('radarTimeouts').textContent = (data.radarTimeouts !== undefined ? data.radarTimeouts : 0);
       document.getElementById('radarSerialRestarts').textContent = (data.radarSerialRestarts !== undefined ? data.radarSerialRestarts : 0);
       document.getElementById('ip').textContent = data.ip || '-';
       document.getElementById('targetCount').textContent = data.targetCount || 0;
@@ -573,7 +571,6 @@ void handleRadarAPI() {
   doc["fwVersion"] = FW_VERSION;
   doc["resetReason"] = esp_reset_reason();
   doc["temp_c"] = temperatureRead();
-  doc["radarTimeouts"] = radarTimeoutCount;
   doc["radarSerialRestarts"] = radarSerialRestartCount;
   doc["range_m"] = g_maxRangeMeters;
   doc["uptime_min"] = millis() / 60000;
