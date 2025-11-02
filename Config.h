@@ -41,6 +41,7 @@ void saveParamCallback();
 // Helper functions
 char* buildMqttTopic(const char* suffix, char* buffer, size_t bufsize);
 void nonBlockingDelay(unsigned long ms);
+void formatUptime(char* buffer, size_t bufsize);
 
 // Radar internals
 struct RadarTarget {

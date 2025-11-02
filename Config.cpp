@@ -81,6 +81,15 @@ void nonBlockingDelay(unsigned long ms) {
   }
 }
 
+void formatUptime(char* buffer, size_t bufsize) {
+  if (!buffer || bufsize == 0) return;
+  unsigned long totalMinutes = millis() / 60000UL;
+  unsigned long hours = totalMinutes / 60UL;
+  unsigned long minutes = totalMinutes % 60UL;
+  if (hours > 999UL) hours = 999UL;
+  snprintf(buffer, bufsize, "%03lu:%02lu", hours, minutes);
+}
+
 //---------------------------------------------------------
 // WiFiManager setup
 //---------------------------------------------------------

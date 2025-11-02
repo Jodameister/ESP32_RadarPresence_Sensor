@@ -367,6 +367,9 @@ void publishStatus() {
   StaticJsonDocument<512> doc;
   doc["fwVersion"]      = FW_VERSION;
   doc["uptime_min"]     = millis()/60000;
+  char uptimeStr[8];
+  formatUptime(uptimeStr, sizeof(uptimeStr));
+  doc["uptime"]         = uptimeStr;
   doc["resetReason"]    = resetReasonToString(esp_reset_reason());
   doc["ip"]             = WiFi.localIP().toString();
   doc["rssi"]           = WiFi.RSSI();

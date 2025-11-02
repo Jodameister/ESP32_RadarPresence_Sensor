@@ -92,6 +92,7 @@ Published every 10 seconds:
 {
   "fwVersion": "v1.7",
   "uptime_min": 42,
+  "uptime": "000:42",
   "resetReason": "software",
   "rssi": -67,
   "channel": 6,
@@ -107,6 +108,8 @@ Published every 10 seconds:
   "webServer": true
 }
 ```
+
+- `uptime` zeigt die Laufzeit im Format `HHH:MM`, `uptime_min` liefert weiterhin die Minuten für kompatible Automationen.
 
 ### Subscribe Topics
 

@@ -390,6 +390,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       return resetReasonMap[code] || ('code ' + code);
     }
 
+    function formatUptimeLabel(minutes, formatted) {
+      if (formatted && typeof formatted === 'string') {
+        return formatted;
+      }
+      const totalMinutes = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0;
+      const hours = Math.min(999, Math.floor(totalMinutes / 60));
+      const mins = totalMinutes % 60;
+      return hours.toString().padStart(3, '0') + ':' + mins.toString().padStart(2, '0');
+    }
+
     function sendCommand(cmd) {
       fetch('/api/cmd?cmd=' + cmd)
         .then(res => res.text())
@@ -547,7 +557,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       document.getElementById('ip').textContent = data.ip || '-';
       document.getElementById('targetCount').textContent = data.targetCount || 0;
       document.getElementById('maxRange').textContent = (data.range_m || 0).toFixed(1) + 'm';
-      document.getElementById('uptime').textContent = (data.uptime_min || 0) + ' min';
+      document.getElementById('uptime').textContent = formatUptimeLabel(data.uptime_min, data.uptime);
       document.getElementById('rssi').textContent = (data.rssi || 0) + ' dBm';
       document.getElementById('heap').textContent = Math.round((data.heap_free || 0) / 1024) + ' KB';
       document.getElementById('holdMs').textContent = (data.holdMs || 500) + 'ms';
@@ -633,6 +643,9 @@ static size_t buildRadarJson(char* buffer, size_t bufsize) {
   doc["radarSerialRestarts"] = radarSerialRestartCount;
   doc["range_m"] = g_maxRangeMeters;
   doc["uptime_min"] = millis() / 60000;
+  char uptimeStr[8];
+  formatUptime(uptimeStr, sizeof(uptimeStr));
+  doc["uptime"] = uptimeStr;
   doc["rssi"] = WiFi.RSSI();
   doc["ip"] = WiFi.localIP().toString();
   doc["heap_free"] = ESP.getFreeHeap();
