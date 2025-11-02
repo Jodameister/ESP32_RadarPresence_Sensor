@@ -388,7 +388,7 @@ void publishStatus() {
   char statusTopic[MQTT_TOPIC_BUFFER_SIZE];
   buildMqttTopic("status", statusTopic, sizeof(statusTopic));
 
-  if (!safePublish(statusTopic, buf)) {
+  if (!safePublishRetain(statusTopic, buf)) {
     Serial.println("WARN: MQTT publish status failed");
   } else {
     Serial.println("Status published");

@@ -28,6 +28,13 @@ bool safePublish(const char* topic, const char* payload) {
   return mqttClient.publish(topic, payload);
 }
 
+bool safePublishRetain(const char* topic, const char* payload) {
+  if (!mqttClient.connected()) {
+    return false;
+  }
+  return mqttClient.publish(topic, payload, true);
+}
+
 void processMqttCommand(const String& cmd) {
   Serial.print("MQTT CMD: ");
   Serial.println(cmd);
