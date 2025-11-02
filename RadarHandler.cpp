@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "MQTTHandler.h"
 #include <ArduinoJson.h>
+#include <esp_system.h>
 
 void enableMultiTargetMode() {
   Serial1.write(multiTargetCmd, sizeof(multiTargetCmd));
@@ -101,26 +102,60 @@ void setHoldInterval(uint32_t ms) {
 }
 
 void restartRadarSerial() {
+  Serial.println("Restarting radar serial...");
+
+  // SICHERHEIT: Buffer leeren BEVOR Serial1.end()
+  while (Serial1.available()) {
+    Serial1.read();
+  }
+
+  // SICHERHEIT: radarCount zurücksetzen
+  radarCount = 0;
+
   Serial1.end();
-  delay(50);
+  delay(100);  // Längere Pause für sauberen Reset
+
   Serial1.begin(256000, SERIAL_8N1,
                 g_radarRxPin.toInt(),
                 g_radarTxPin.toInt());
-  delay(50);
+  delay(100);
+
   setMaxRadarRange(g_maxRangeMeters);
   enableMultiTargetMode();
+
+  // SICHERHEIT: lastRadarDataTime aktualisieren
+  lastRadarDataTime = millis();
+
   mqttClient.publish((g_mqttTopic + "/ack").c_str(), "resetRadar→OK");
+  Serial.println("Radar serial restarted");
 }
 
 void parseRadarFrame(const uint8_t* buf, uint8_t len) {
-  if (len != RADAR_FRAME_SIZE || memcmp(buf, "\xAA\xFF\x03\x00", 4)) return;
+  // SICHERHEIT: Strikte Validierung
+  if (!buf || len != RADAR_FRAME_SIZE) return;
+  if (buf[0] != 0xAA || buf[1] != 0xFF || buf[2] != 0x03 || buf[3] != 0x00) return;
+
   unsigned long now = millis();
   for (int i = 0; i < 3; i++) {
-    const uint8_t* b = buf + 4 + i * RADAR_TARGET_BLOCKSIZE;
-    RadarTarget cur; bool seen = false;
+    int offset = 4 + i * RADAR_TARGET_BLOCKSIZE;
+
+    // SICHERHEIT: Bounds-Check
+    if (offset + RADAR_TARGET_BLOCKSIZE > len) {
+      Serial.print("WARN: parseRadarFrame offset out of bounds: ");
+      Serial.println(offset);
+      break;
+    }
+
+    const uint8_t* b = buf + offset;
+
+    // SICHERHEIT: cur initialisieren!
+    RadarTarget cur = {0};
+    bool seen = false;
+
     for (int j = 0; j < RADAR_TARGET_BLOCKSIZE; j++) {
       if (b[j]) { seen = true; break; }
     }
+
     if (seen) {
       lastSeenTime[i] = now;
       int16_t rx = (b[1] & 0x80)
@@ -130,7 +165,8 @@ void parseRadarFrame(const uint8_t* buf, uint8_t len) {
         ? ((b[3] & 0x7F) << 8 | b[2])
         : -((b[3] & 0x7F) << 8 | b[2]);
       cur.presence = true;
-      cur.x = rx; cur.y = ry;
+      cur.x = rx;
+      cur.y = ry;
       cur.speed = (b[5] & 0x80)
         ? ((b[5] & 0x7F)<<8|b[4])
         : -((b[5] & 0x7F)<<8|b[4]);
@@ -139,12 +175,14 @@ void parseRadarFrame(const uint8_t* buf, uint8_t len) {
       cur.angleDeg = atan2f(ry, rx) * 180.0f / PI;
     }
     else if (now - lastSeenTime[i] <= g_holdIntervalMs) {
-      cur = smoothed[i]; cur.presence = true;
+      cur = smoothed[i];
+      cur.presence = true;
     }
     else {
       cur.presence = false;
       cur.x = cur.y = cur.speed = cur.distRaw = cur.distanceXY = cur.angleDeg = 0;
     }
+
     if (!smoothed[i].presence) {
       smoothed[i] = cur;
     } else if (cur.presence) {
@@ -161,50 +199,136 @@ void parseRadarFrame(const uint8_t* buf, uint8_t len) {
 }
 
 void readRadarData() {
-  while (Serial1.available()) {
-    radarBuf[radarCount++] = Serial1.read();
-    if (radarCount >= RADAR_FRAME_SIZE) {
-      if (radarBuf[radarCount-2]==0x55 && radarBuf[radarCount-1]==0xCC) {
-        parseRadarFrame(radarBuf, radarCount);
+  const uint16_t MAX_READ = 256;
+  uint16_t readCnt = 0;
+  static uint8_t lastF[RADAR_FRAME_SIZE];
+
+  while (Serial1.available() && readCnt < MAX_READ) {
+    lastRadarDataTime = millis();
+
+    // SICHERHEIT: Buffer-Overflow-Schutz BEVOR wir schreiben
+    if (radarCount >= sizeof(radarBuf)) {
+      radarCount = 0;
+      Serial.println("WARN: radarBuf overflow reset");
+    }
+
+    radarBuf[radarCount] = Serial1.read();
+    radarCount++;
+    readCnt++;
+
+    // Frame-Ende erkannt?
+    if (radarCount >= 2 &&
+        radarBuf[radarCount-2] == 0x55 &&
+        radarBuf[radarCount-1] == 0xCC) {
+
+      // SICHERHEIT: Nur gültige Frames verarbeiten
+      if (radarCount == RADAR_FRAME_SIZE) {
+        // Prüfen, ob das Frame echte Targets enthält:
+        bool hasAnyTarget = false;
+        for (int i = 0; i < 3; i++) {
+          int offset = 4 + i * RADAR_TARGET_BLOCKSIZE;
+
+          // SICHERHEIT: Bounds-Check vor Zugriff
+          if (offset + RADAR_TARGET_BLOCKSIZE > RADAR_FRAME_SIZE) {
+            break;
+          }
+
+          const uint8_t* blk = radarBuf + offset;
+          bool empty = true;
+          for (int j = 0; j < RADAR_TARGET_BLOCKSIZE; j++) {
+            if (blk[j]) { empty = false; break; }
+          }
+          if (!empty) {
+            hasAnyTarget = true;
+            break;
+          }
+        }
+
+        // Parsing auslösen, wenn
+        //    a) es neue Target-Daten sind (memcmp ≠ 0) oder
+        //    b) gar keine Targets mehr da sind (!hasAnyTarget)
+        if (memcmp(radarBuf, lastF, RADAR_FRAME_SIZE) != 0
+            || !hasAnyTarget) {
+          memcpy(lastF, radarBuf, RADAR_FRAME_SIZE);
+          parseRadarFrame(radarBuf, radarCount);
+        }
+      } else if (radarCount > RADAR_FRAME_SIZE) {
+        // SICHERHEIT: Ungültiger Frame zu lang
+        Serial.print("WARN: Invalid frame size: ");
+        Serial.println(radarCount);
       }
+
       radarCount = 0;
     }
   }
+
+  if (Serial1.available()) yield();
 }
 
 void publishRadarJson() {
-  StaticJsonDocument<256> doc;
-  int cnt = 0; for (auto &t : smoothed) if (t.presence) cnt++;
+  StaticJsonDocument<512> doc;
+  int cnt = 0;
+  for (auto &t: smoothed) if (t.presence) cnt++;
   doc["targetCount"] = cnt;
   for (int i = 0; i < 3; i++) {
-    char key[10]; snprintf(key,10,"target%d",i+1);
+    char key[12];
+    snprintf(key, sizeof(key), "target%d", i + 1);
     auto o = doc.createNestedObject(key);
     if (!smoothed[i].presence) {
       o["presence"] = false;
     } else {
-      o["presence"] = true;
-      o["x"]        = round(smoothed[i].x);
-      o["y"]        = round(smoothed[i].y);
-      o["speed"]    = round(smoothed[i].speed);
-      o["distRaw"]  = round(smoothed[i].distRaw);
-      o["distance"] = round(smoothed[i].distanceXY);
-      o["angleDeg"] = round(smoothed[i].angleDeg);
+      o["presence"]  = true;
+      o["x"]         = round(smoothed[i].x);
+      o["y"]         = round(smoothed[i].y);
+      o["speed"]     = round(smoothed[i].speed);
+      o["distRaw"]   = round(smoothed[i].distRaw);
+      o["distance"]  = round(smoothed[i].distanceXY);
+      o["angleDeg"]  = round(smoothed[i].angleDeg);
     }
   }
-  char bufOut[256]; serializeJson(doc, bufOut);
-  mqttClient.publish(g_mqttTopic.c_str(), bufOut);
+  char buf[512];
+  serializeJson(doc, buf);
+  unsigned long now = millis();
+
+  if (!cnt) {
+    // 0 Targets: max. 1× pro Sekunde
+    if (now - lastZeroPub < 1000) return;
+    lastZeroPub = now;
+  }
+
+  // SICHERHEIT: Publish mit QoS 0 und prüfen ob erfolgreich
+  if (!mqttClient.publish(g_mqttTopic.c_str(), buf)) {
+    Serial.println("WARN: MQTT publish radar failed");
+  }
 }
 
 void publishStatus() {
-  StaticJsonDocument<256> doc;
-  doc["fwVersion"] = FW_VERSION;
-  doc["uptime_min"] = millis()/60000;
-  doc["rssi"]       = WiFi.RSSI();
-  doc["heap"]       = ESP.getFreeHeap();
-  doc["holdMs"]     = g_holdIntervalMs;
-  doc["range_m"]    = g_maxRangeMeters;
-  char bufOut[256]; serializeJson(doc, bufOut);
-  mqttClient.publish((g_mqttTopic + "/status").c_str(), bufOut);
+  StaticJsonDocument<512> doc;
+  doc["fwVersion"]      = FW_VERSION;
+  doc["uptime_min"]     = millis()/60000;
+  doc["resetReason"]    = esp_reset_reason();
+  doc["rssi"]           = WiFi.RSSI();
+  doc["channel"]        = WiFi.channel();
+  doc["heap_free"]      = ESP.getFreeHeap();
+#ifdef CONFIG_FREERTOS_USE_TRACE_FACILITY
+  doc["psram_free"]     = ESP.getFreePsram();
+#endif
+  doc["temp_c"]         = temperatureRead();
+  doc["mqttState"]      = mqttClient.state();
+  doc["wifiReconnects"] = wifiReconnectCount;
+  doc["radarTimeouts"]  = radarTimeoutCount;
+  doc["lastRadarDelta"] = millis() - lastRadarDataTime;
+  doc["holdMs"]         = g_holdIntervalMs;
+  doc["range_m"]        = g_maxRangeMeters;
+  char buf[512];
+  serializeJson(doc, buf);
+
+  // SICHERHEIT: Publish mit Fehlerbehandlung
+  if (!mqttClient.publish((g_mqttTopic+"/status").c_str(), buf)) {
+    Serial.println("WARN: MQTT publish status failed");
+  } else {
+    Serial.println("Status published");
+  }
 }
 
 void checkRadarConnection() {

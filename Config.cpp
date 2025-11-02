@@ -58,9 +58,7 @@ const uint8_t  multiTargetCmd[12] = {
 
 RadarTarget    smoothed[3];
 unsigned long  lastSeenTime[3] = {0,0,0};
-
-const int      RADAR_FRAME_SIZE       = 30;
-const int      RADAR_TARGET_BLOCKSIZE = 8;
+unsigned long  lastZeroPub = 0;
 
 //---------------------------------------------------------
 // WiFiManager setup

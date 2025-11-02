@@ -47,4 +47,7 @@ extern const float       ALPHA, RANGE_GATE_SIZE;
 extern const uint8_t     multiTargetCmd[12];
 extern RadarTarget       smoothed[3];
 extern unsigned long     lastSeenTime[3];
-extern const int         RADAR_FRAME_SIZE, RADAR_TARGET_BLOCKSIZE;
+extern unsigned long     lastZeroPub;
+// Radar frame constants (must be #define for array sizes)
+#define RADAR_FRAME_SIZE       30
+#define RADAR_TARGET_BLOCKSIZE 8
