@@ -66,9 +66,22 @@ void processMqttCommand(const String& cmd) {
     publishStatus();
     safePublish(ackTopic, "getStatus OK");
   }
+  else if (cmd == "help") {
+    const char* helpMsg =
+      "Available commands:\n"
+      "config - Start WiFi config portal\n"
+      "reboot - Restart ESP32\n"
+      "resetRadar - Restart radar serial\n"
+      "setRange:<value> - Set max range (0-15m)\n"
+      "setHold:<value> - Set hold interval (0-10000ms)\n"
+      "getStatus - Publish current status\n"
+      "help - Show this help";
+    safePublish(ackTopic, helpMsg);
+  }
   else {
     Serial.print("Unknown command: ");
     Serial.println(cmd);
+    safePublish(ackTopic, "ERROR: Unknown command. Send 'help' for available commands.");
   }
 }
 
