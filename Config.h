@@ -51,7 +51,7 @@ extern uint8_t           radarBuf[64];
 extern uint8_t           radarCount;
 extern bool              otaInProgress, startConfigPortal, rebootRequested, serialResetAttempted;
 extern unsigned long     serialResetTime;
-extern uint32_t          wifiReconnectCount, radarTimeoutCount;
+extern uint32_t          wifiReconnectCount, radarTimeoutCount, radarSerialRestartCount;
 extern const float       ALPHA, RANGE_GATE_SIZE;
 extern const uint8_t     multiTargetCmd[12];
 extern RadarTarget       smoothed[3];
