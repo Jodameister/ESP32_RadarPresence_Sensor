@@ -19,6 +19,7 @@ struct SSEClient {
 
 SSEClient sseClients[1];
 const int MAX_SSE_CLIENTS = 1;
+unsigned long lastSseBroadcast = 0;
 
 // Embedded HTML page
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
@@ -344,6 +345,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     const PIXELS_PER_METER = 50;
     const CENTER_X = 400;
     const CENTER_Y = 30;
+    let fallbackTimer = null;
+    let eventSource = null;
 
     const resetReasonMap = {
       1: 'POWERON_RESET',
@@ -379,7 +382,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         });
     }
 
-    // Polling statt WebSocket
     function fetchData() {
       fetch('/api/radar')
         .then(res => res.json())
@@ -391,6 +393,49 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
           statusEl.className = 'disconnected';
           console.error('Fetch error:', err);
         });
+    }
+
+    function startPollingFallback() {
+      if (fallbackTimer) return;
+      fetchData();
+      fallbackTimer = setInterval(fetchData, 1000);
+    }
+
+    function setupRealtime() {
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer);
+        fallbackTimer = null;
+      }
+      if (!window.EventSource) {
+        startPollingFallback();
+        return;
+      }
+
+      if (eventSource) {
+        eventSource.close();
+      }
+      eventSource = new EventSource('/events');
+      eventSource.onopen = () => {
+        statusEl.className = 'connected';
+      };
+      eventSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          statusEl.className = 'connected';
+          updateRadar(payload);
+        } catch (e) {
+          console.error('SSE parse error', e);
+        }
+      };
+      eventSource.onerror = (err) => {
+        console.warn('SSE error, fallback to polling', err);
+        statusEl.className = 'disconnected';
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+        startPollingFallback();
+      };
     }
 
     function drawRadar() {
@@ -550,19 +595,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
     }
 
-    // Poll every 1000ms to reduce socket churn
-    setInterval(fetchData, 1000);
-    fetchData();
+    drawRadar();
+    setupRealtime();
   </script>
 </body>
 </html>
 )rawliteral";
 
-void handleRoot() {
-  webServer.send_P(200, "text/html", INDEX_HTML);
-}
-
-void handleRadarAPI() {
+static size_t buildRadarJson(char* buffer, size_t bufsize) {
   StaticJsonDocument<JSON_BUFFER_SIZE> doc;
 
   doc["targetCount"] = 0;
@@ -579,7 +619,6 @@ void handleRadarAPI() {
   doc["heap_free"] = ESP.getFreeHeap();
   doc["holdMs"] = g_holdIntervalMs;
 
-  // Warnungen hinzufügen
   JsonArray warnings = doc.createNestedArray("warnings");
   if (WiFi.RSSI() < -80) {
     warnings.add("Schwaches WiFi-Signal");
@@ -611,9 +650,73 @@ void handleRadarAPI() {
     }
   }
 
-  char buffer[JSON_BUFFER_SIZE];
-  serializeJson(doc, buffer);
+  return serializeJson(doc, buffer, bufsize);
+}
 
+void handleSSE() {
+  SSEClient& slot = sseClients[0];
+  if (slot.active) {
+    slot.client.stop();
+    slot.active = false;
+  }
+
+  WiFiClient client = webServer.client();
+  if (!client.connected()) {
+    return;
+  }
+
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: text/event-stream");
+  client.println("Cache-Control: no-cache");
+  client.println("Connection: keep-alive");
+  client.println();
+  client.flush();
+
+  slot.client = client;
+  slot.lastPing = millis();
+  slot.active = true;
+  lastSseBroadcast = 0;
+
+  char buffer[JSON_BUFFER_SIZE];
+  size_t len = buildRadarJson(buffer, sizeof(buffer));
+  slot.client.print("data: ");
+  slot.client.write(buffer, len);
+  slot.client.print("\n\n");
+  slot.client.flush();
+  lastSseBroadcast = slot.lastPing;
+}
+
+void broadcastRadarSSE() {
+  SSEClient& slot = sseClients[0];
+  if (!slot.active) return;
+  if (!slot.client.connected()) {
+    slot.client.stop();
+    slot.active = false;
+    return;
+  }
+
+  unsigned long now = millis();
+  if (now - lastSseBroadcast < 500) return;
+
+  char buffer[JSON_BUFFER_SIZE];
+  size_t len = buildRadarJson(buffer, sizeof(buffer));
+
+  slot.client.print("data: ");
+  slot.client.write(buffer, len);
+  slot.client.print("\n\n");
+  slot.client.flush();
+
+  slot.lastPing = now;
+  lastSseBroadcast = now;
+}
+
+void handleRoot() {
+  webServer.send_P(200, "text/html", INDEX_HTML);
+}
+
+void handleRadarAPI() {
+  char buffer[JSON_BUFFER_SIZE];
+  buildRadarJson(buffer, sizeof(buffer));
   webServer.sendHeader("Access-Control-Allow-Origin", "*");
   webServer.send(200, "application/json", buffer);
 }
@@ -633,6 +736,7 @@ void handleCommand() {
 void setupWebServer() {
   webServer.on("/", handleRoot);
   webServer.on("/api/radar", handleRadarAPI);
+  webServer.on("/events", handleSSE);
   webServer.on("/api/cmd", handleCommand);
 
   webServer.begin();
@@ -641,6 +745,7 @@ void setupWebServer() {
 
 void handleWebServer() {
   webServer.handleClient();
+  broadcastRadarSSE();
 }
 
 void sendRadarData() {
