@@ -7,7 +7,7 @@
 #include <PubSubClient.h>
 
 // Version
-#define FW_VERSION "v1.5.d"
+#define FW_VERSION "v1."
 
 // Preferences & network clients
 extern Preferences  prefs;
