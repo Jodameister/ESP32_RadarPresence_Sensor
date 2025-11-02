@@ -30,6 +30,7 @@ extern uint32_t g_holdIntervalMs;
 
 // Timing & pins
 extern unsigned long lastRadarDataTime, lastRadarPub, lastStatusPub, lastWiFiCheck;
+extern unsigned long lastWiFiConnected, lastWiFiReconnectAttempt;
 extern const unsigned long RADAR_INTERVAL_MS, STATUS_INTERVAL, NO_DATA_TIMEOUT, RESTART_TIMEOUT;
 extern const int          RADAR_BOOT_PIN;
 
@@ -52,6 +53,7 @@ extern uint8_t           radarCount;
 extern bool              otaInProgress, startConfigPortal, rebootRequested, serialResetAttempted;
 extern unsigned long     serialResetTime;
 extern uint32_t          wifiReconnectCount, radarTimeoutCount, radarSerialRestartCount;
+extern bool              wifiReconnectIssued;
 extern const float       ALPHA, RANGE_GATE_SIZE;
 extern const uint8_t     multiTargetCmd[12];
 extern RadarTarget       smoothed[3];

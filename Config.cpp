@@ -27,6 +27,8 @@ unsigned long lastRadarDataTime = 0;
 unsigned long lastRadarPub      = 0;
 unsigned long lastStatusPub     = 0;
 unsigned long lastWiFiCheck     = 0;
+unsigned long lastWiFiConnected = 0;
+unsigned long lastWiFiReconnectAttempt = 0;
 
 const unsigned long RADAR_INTERVAL_MS = 100;
 const unsigned long STATUS_INTERVAL   = 10000;
@@ -47,6 +49,7 @@ unsigned long  serialResetTime      = 0;
 uint32_t       wifiReconnectCount   = 0;
 uint32_t       radarTimeoutCount    = 0;
 uint32_t       radarSerialRestartCount = 0;
+bool           wifiReconnectIssued  = false;
 
 const float    ALPHA             = 0.4f;
 const float    RANGE_GATE_SIZE   = 0.7f;

@@ -41,6 +41,30 @@ WiFiManagerParameter paramObjects[sizeof(paramInfos)/sizeof(paramInfos[0])];
 void configureWiFiManager(WiFiManager& wm);
 void setupWiFiManagerParams(WiFiManager& wm);
 void handleMqttCommands();
+void maintainWiFi();
+
+void maintainWiFi() {
+  static const unsigned long WIFI_RECONNECT_INTERVAL = 15000UL;
+  static const unsigned long WIFI_MAX_OUTAGE = 300000UL; // 5 minutes
+  unsigned long now = millis();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    lastWiFiConnected = now;
+    return;
+  }
+
+  if (!wifiReconnectIssued || (now - lastWiFiReconnectAttempt) > WIFI_RECONNECT_INTERVAL) {
+    Serial.println("WiFi offline → attempting reconnect");
+    wifiReconnectIssued = true;
+    lastWiFiReconnectAttempt = now;
+    WiFi.reconnect();
+  }
+
+  if (now - lastWiFiConnected > WIFI_MAX_OUTAGE) {
+    Serial.println("WiFi offline for more than 5 minutes → restarting ESP");
+    ESP.restart();
+  }
+}
 
 void configureWiFiManager(WiFiManager& wm) {
   wm.setSaveParamsCallback(saveParamCallback);
@@ -91,6 +115,8 @@ void setup() {
   WiFi.persistent(true);
   WiFi.setAutoReconnect(true);
   esp_wifi_set_ps(WIFI_PS_NONE);
+  lastWiFiConnected = millis();
+  wifiReconnectIssued = false;
 
   // SICHERHEIT: Einfacher Event-Handler ohne WiFi-API Aufrufe
   // WiFi.setAutoReconnect(true) macht den Reconnect automatisch
@@ -103,9 +129,14 @@ void setup() {
         case ARDUINO_EVENT_WIFI_STA_CONNECTED:
           Serial.printf("WiFi event: CONNECTED to %s\n",
                         reinterpret_cast<const char*>(info.wifi_sta_connected.ssid));
+          wifiReconnectIssued = false;
+          lastWiFiReconnectAttempt = 0;
           break;
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
           Serial.printf("WiFi event: GOT_IP %s\n", WiFi.localIP().toString().c_str());
+          lastWiFiConnected = millis();
+          wifiReconnectIssued = false;
+          lastWiFiReconnectAttempt = 0;
           break;
         case ARDUINO_EVENT_WIFI_STA_LOST_IP:
           Serial.println("WiFi event: LOST_IP");
@@ -114,6 +145,9 @@ void setup() {
           Serial.printf("WiFi event: DISCONNECTED (reason=%d)\n",
                         info.wifi_sta_disconnected.reason);
           wifiReconnectCount++;
+          wifiReconnectIssued = true;
+          lastWiFiReconnectAttempt = millis();
+          WiFi.reconnect();
           break;
         default:
           Serial.printf("WiFi event: %d\n", evt);
@@ -187,6 +221,7 @@ void loop() {
   }
 
   // WiFi connection monitoring (Auto-reconnect ist aktiv via setAutoReconnect)
+  maintainWiFi();
   if (WiFi.status() != WL_CONNECTED &&
       millis() - lastWiFiCheck > 10000UL) {
     Serial.print("WiFi not connected, status: ");
