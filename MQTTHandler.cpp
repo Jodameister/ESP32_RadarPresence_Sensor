@@ -26,11 +26,15 @@ void processMqttCommand(const String& cmd) {
   Serial.println(cmd);
 
   if (cmd == "config") {
-    mqttClient.publish((g_mqttTopic + "/ack").c_str(), "config OK");
+    if (mqttClient.connected()) {
+      mqttClient.publish((g_mqttTopic + "/ack").c_str(), "config OK");
+    }
     startConfigPortal = true;
   }
   else if (cmd == "reboot") {
-    mqttClient.publish((g_mqttTopic + "/ack").c_str(), "reboot OK");
+    if (mqttClient.connected()) {
+      mqttClient.publish((g_mqttTopic + "/ack").c_str(), "reboot OK");
+    }
     rebootRequested = true;
   }
   else if (cmd == "resetRadar") {
@@ -40,7 +44,7 @@ void processMqttCommand(const String& cmd) {
     float v = cmd.substring(9).toFloat();
     if (v > 0 && v <= 15) {  // SICHERHEIT: Validierung
       setMaxRadarRange(v);
-    } else {
+    } else if (mqttClient.connected()) {
       mqttClient.publish((g_mqttTopic + "/ack").c_str(), "setRange ERROR: invalid value");
     }
   }
@@ -48,13 +52,15 @@ void processMqttCommand(const String& cmd) {
     uint32_t v = cmd.substring(8).toInt();
     if (v >= 0 && v <= 10000) {  // SICHERHEIT: Max 10 Sekunden
       setHoldInterval(v);
-    } else {
+    } else if (mqttClient.connected()) {
       mqttClient.publish((g_mqttTopic + "/ack").c_str(), "setHold ERROR: invalid value");
     }
   }
   else if (cmd == "getStatus") {
     publishStatus();
-    mqttClient.publish((g_mqttTopic + "/ack").c_str(), "getStatus OK");
+    if (mqttClient.connected()) {
+      mqttClient.publish((g_mqttTopic + "/ack").c_str(), "getStatus OK");
+    }
   }
   else {
     Serial.print("Unknown command: ");

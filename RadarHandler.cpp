@@ -65,7 +65,11 @@ void setMaxRadarRange(float m) {
   } else {
     strcpy(bufAck, "setRange→ERROR");
   }
-  mqttClient.publish((g_mqttTopic + "/ack").c_str(), bufAck);
+
+  // Nur publishen wenn MQTT verbunden
+  if (mqttClient.connected()) {
+    mqttClient.publish((g_mqttTopic + "/ack").c_str(), bufAck);
+  }
 }
 
 void setHoldInterval(uint32_t ms) {
@@ -98,7 +102,11 @@ void setHoldInterval(uint32_t ms) {
   } else {
     strcpy(bufAck, "setHold→ERROR");
   }
-  mqttClient.publish((g_mqttTopic + "/ack").c_str(), bufAck);
+
+  // Nur publishen wenn MQTT verbunden
+  if (mqttClient.connected()) {
+    mqttClient.publish((g_mqttTopic + "/ack").c_str(), bufAck);
+  }
 }
 
 void restartRadarSerial() {
@@ -113,12 +121,24 @@ void restartRadarSerial() {
   radarCount = 0;
 
   Serial1.end();
-  delay(100);  // Längere Pause für sauberen Reset
+
+  // Non-blocking delay mit MQTT-Loop
+  unsigned long start = millis();
+  while (millis() - start < 100) {
+    mqttClient.loop();
+    yield();
+  }
 
   Serial1.begin(256000, SERIAL_8N1,
                 g_radarRxPin.toInt(),
                 g_radarTxPin.toInt());
-  delay(100);
+
+  // Non-blocking delay mit MQTT-Loop
+  start = millis();
+  while (millis() - start < 100) {
+    mqttClient.loop();
+    yield();
+  }
 
   setMaxRadarRange(g_maxRangeMeters);
   enableMultiTargetMode();
@@ -126,7 +146,10 @@ void restartRadarSerial() {
   // SICHERHEIT: lastRadarDataTime aktualisieren
   lastRadarDataTime = millis();
 
-  mqttClient.publish((g_mqttTopic + "/ack").c_str(), "resetRadar→OK");
+  // Nur publishen wenn verbunden
+  if (mqttClient.connected()) {
+    mqttClient.publish((g_mqttTopic + "/ack").c_str(), "resetRadar→OK");
+  }
   Serial.println("Radar serial restarted");
 }
 
@@ -296,7 +319,11 @@ void publishRadarJson() {
     lastZeroPub = now;
   }
 
-  // SICHERHEIT: Publish mit QoS 0 und prüfen ob erfolgreich
+  // SICHERHEIT: Nur publishen wenn verbunden
+  if (!mqttClient.connected()) {
+    return;  // Kein Fehler loggen - wird in mqttReconnect() behandelt
+  }
+
   if (!mqttClient.publish(g_mqttTopic.c_str(), buf)) {
     Serial.println("WARN: MQTT publish radar failed");
   }
@@ -323,7 +350,11 @@ void publishStatus() {
   char buf[512];
   serializeJson(doc, buf);
 
-  // SICHERHEIT: Publish mit Fehlerbehandlung
+  // SICHERHEIT: Nur publishen wenn verbunden
+  if (!mqttClient.connected()) {
+    return;  // Kein Fehler loggen - wird in mqttReconnect() behandelt
+  }
+
   if (!mqttClient.publish((g_mqttTopic+"/status").c_str(), buf)) {
     Serial.println("WARN: MQTT publish status failed");
   } else {

@@ -87,13 +87,16 @@ void setup() {
   WiFi.persistent(true);
   WiFi.setAutoReconnect(true);
   esp_wifi_set_ps(WIFI_PS_NONE);
+
+  // SICHERHEIT: Einfacher Event-Handler ohne WiFi-API Aufrufe
+  // WiFi.setAutoReconnect(true) macht den Reconnect automatisch
   WiFi.onEvent(
-    [](arduino_event_id_t, WiFiEventInfo_t){
-      Serial.println("WLAN getrennt – reconnect…");
-      wifiReconnectCount++;
-      WiFi.reconnect();
-    },
-    ARDUINO_EVENT_WIFI_STA_DISCONNECTED
+    [](arduino_event_id_t evt, WiFiEventInfo_t info){
+      if (evt == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+        Serial.println("WiFi disconnected");
+        wifiReconnectCount++;
+      }
+    }
   );
 
   otaSetup();
@@ -155,12 +158,11 @@ void loop() {
     bootPressed = false;
   }
 
-  // WiFi connection check
+  // WiFi connection monitoring (Auto-reconnect ist aktiv via setAutoReconnect)
   if (WiFi.status() != WL_CONNECTED &&
       millis() - lastWiFiCheck > 10000UL) {
-    Serial.println("WLAN nicht verbunden – reconnect…");
-    wifiReconnectCount++;
-    WiFi.reconnect();
+    Serial.print("WiFi not connected, status: ");
+    Serial.println(WiFi.status());
     lastWiFiCheck = millis();
   }
 
