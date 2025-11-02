@@ -13,6 +13,7 @@ A robust ESP32-based presence detection system using the RD-03D radar sensor wit
 - **Configurable Detection Range**: Adjustable via MQTT commands
 - **Auto-Reconnect**: Robust WiFi and MQTT connection management
 - **Status Monitoring**: Comprehensive system health reporting
+- **Live Web Dashboard**: Browser UI streams radar & ESP telemetry via SSE
 
 ## Hardware Requirements
 
@@ -89,7 +90,7 @@ Published every 10 seconds:
 
 ```json
 {
-  "fwVersion": "v1.5.d",
+  "fwVersion": "v1.7",
   "uptime_min": 42,
   "resetReason": 1,
   "rssi": -67,
@@ -99,6 +100,7 @@ Published every 10 seconds:
   "mqttState": 0,
   "wifiReconnects": 0,
   "radarTimeouts": 0,
+  "radarSerialRestarts": 1,
   "lastRadarDelta": 23,
   "holdMs": 500,
   "range_m": 2.1
@@ -144,8 +146,16 @@ RadarPresence/
 ├── Config.h/cpp         # Global configuration & variables
 ├── RadarHandler.h/cpp   # Radar communication & data processing
 ├── MQTTHandler.h/cpp    # MQTT client & command handling
-└── OTAHandler.h/cpp     # OTA update management
+├── OTAHandler.h/cpp     # OTA update management
+└── WebServerHandler.h/cpp # Web dashboard, API, and SSE streaming
 ```
+
+## Web Dashboard
+
+- Aufruf über `http://<hostname-oder-ip>/` (Hostname wird im WiFiManager gesetzt)
+- Frontend streamt Live-Daten via Server-Sent Events (`/events`) und fällt bei Bedarf auf 1 s HTTP-Polling (`/api/radar`) zurück
+- Buttons erlauben Neustart von ESP, Radar sowie das Öffnen des WiFiManager-Portals
+- Warnungen markieren schwaches WLAN, wenig Heap oder ausstehende Radarframes
 
 ## Safety Features
 
