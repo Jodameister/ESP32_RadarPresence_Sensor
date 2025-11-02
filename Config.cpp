@@ -61,6 +61,22 @@ unsigned long  lastSeenTime[3] = {0,0,0};
 unsigned long  lastZeroPub = 0;
 
 //---------------------------------------------------------
+// Helper Functions
+//---------------------------------------------------------
+char* buildMqttTopic(const char* suffix, char* buffer, size_t bufsize) {
+  snprintf(buffer, bufsize, "%s/%s", g_mqttTopic.c_str(), suffix);
+  return buffer;
+}
+
+void nonBlockingDelay(unsigned long ms) {
+  unsigned long start = millis();
+  while (millis() - start < ms) {
+    mqttClient.loop();
+    yield();
+  }
+}
+
+//---------------------------------------------------------
 // WiFiManager setup
 //---------------------------------------------------------
 void setupWiFiManager() {

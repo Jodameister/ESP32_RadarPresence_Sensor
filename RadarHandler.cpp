@@ -41,7 +41,7 @@ void setMaxRadarRange(float m) {
     0xFD,0xFC,0xFB,0xFA,0x04,0x00,0xFF,0x00,0x01,0x00,0x04,0x03,0x02,0x01
   };
   Serial1.write(openCmd, sizeof(openCmd));
-  delayMicroseconds(50000);  // 50ms non-blocking
+  delayMicroseconds(RADAR_CMD_DELAY_US);
 
   // Set
   uint8_t setCmd[] = {
@@ -49,14 +49,14 @@ void setMaxRadarRange(float m) {
     gate,0x00,0x00,0x00,0x04,0x03,0x02,0x01
   };
   Serial1.write(setCmd, sizeof(setCmd));
-  delayMicroseconds(50000);
+  delayMicroseconds(RADAR_CMD_DELAY_US);
 
   // Close
   static const uint8_t closeCmd[] = {
     0xFD,0xFC,0xFB,0xFA,0x02,0x00,0xFE,0x00,0x04,0x03,0x02,0x01
   };
   Serial1.write(closeCmd, sizeof(closeCmd));
-  delayMicroseconds(50000);
+  delayMicroseconds(RADAR_CMD_DELAY_US);
 
   bool ok = readSensorAck(0x0007);
   char bufAck[64];
@@ -66,12 +66,9 @@ void setMaxRadarRange(float m) {
     strcpy(bufAck, "setRange→ERROR");
   }
 
-  // SICHERHEIT: Nur publishen wenn verbunden, ohne String-Konkatenation
-  if (mqttClient.connected()) {
-    char topic[80];
-    snprintf(topic, sizeof(topic), "%s/ack", g_mqttTopic.c_str());
-    mqttClient.publish(topic, bufAck);
-  }
+  char topic[MQTT_TOPIC_BUFFER_SIZE];
+  buildMqttTopic("ack", topic, sizeof(topic));
+  safePublish(topic, bufAck);
 }
 
 void setHoldInterval(uint32_t ms) {
@@ -81,7 +78,7 @@ void setHoldInterval(uint32_t ms) {
     0xFD,0xFC,0xFB,0xFA,0x04,0x00,0xFF,0x00,0x01,0x00,0x04,0x03,0x02,0x01
   };
   Serial1.write(openCmd, sizeof(openCmd));
-  delayMicroseconds(50000);
+  delayMicroseconds(RADAR_CMD_DELAY_US);
 
   uint8_t lo = ms & 0xFF, hi = (ms >> 8) & 0xFF;
   uint8_t setCmd[] = {
@@ -89,13 +86,13 @@ void setHoldInterval(uint32_t ms) {
     lo,hi,0x00,0x00,0x04,0x03,0x02,0x01
   };
   Serial1.write(setCmd, sizeof(setCmd));
-  delayMicroseconds(50000);
+  delayMicroseconds(RADAR_CMD_DELAY_US);
 
   static const uint8_t closeCmd[] = {
     0xFD,0xFC,0xFB,0xFA,0x02,0x00,0xFE,0x00,0x04,0x03,0x02,0x01
   };
   Serial1.write(closeCmd, sizeof(closeCmd));
-  delayMicroseconds(50000);
+  delayMicroseconds(RADAR_CMD_DELAY_US);
 
   bool ok = readSensorAck(0x0007);
   char bufAck[64];
@@ -105,12 +102,9 @@ void setHoldInterval(uint32_t ms) {
     strcpy(bufAck, "setHold→ERROR");
   }
 
-  // SICHERHEIT: Nur publishen wenn verbunden, ohne String-Konkatenation
-  if (mqttClient.connected()) {
-    char topic[80];
-    snprintf(topic, sizeof(topic), "%s/ack", g_mqttTopic.c_str());
-    mqttClient.publish(topic, bufAck);
-  }
+  char topic[MQTT_TOPIC_BUFFER_SIZE];
+  buildMqttTopic("ack", topic, sizeof(topic));
+  safePublish(topic, bufAck);
 }
 
 void restartRadarSerial() {
@@ -150,10 +144,9 @@ void restartRadarSerial() {
   // SICHERHEIT: lastRadarDataTime aktualisieren
   lastRadarDataTime = millis();
 
-  // Nur publishen wenn verbunden
-  if (mqttClient.connected()) {
-    mqttClient.publish((g_mqttTopic + "/ack").c_str(), "resetRadar→OK");
-  }
+  char topic[MQTT_TOPIC_BUFFER_SIZE];
+  buildMqttTopic("ack", topic, sizeof(topic));
+  safePublish(topic, "resetRadar→OK");
   Serial.println("Radar serial restarted");
 }
 
@@ -323,12 +316,7 @@ void publishRadarJson() {
     lastZeroPub = now;
   }
 
-  // SICHERHEIT: Nur publishen wenn verbunden
-  if (!mqttClient.connected()) {
-    return;  // Kein Fehler loggen - wird in mqttReconnect() behandelt
-  }
-
-  if (!mqttClient.publish(g_mqttTopic.c_str(), buf)) {
+  if (!safePublish(g_mqttTopic.c_str(), buf)) {
     Serial.println("WARN: MQTT publish radar failed");
   }
 }
@@ -338,6 +326,7 @@ void publishStatus() {
   doc["fwVersion"]      = FW_VERSION;
   doc["uptime_min"]     = millis()/60000;
   doc["resetReason"]    = esp_reset_reason();
+  doc["ip"]             = WiFi.localIP().toString();
   doc["rssi"]           = WiFi.RSSI();
   doc["channel"]        = WiFi.channel();
   doc["heap_free"]      = ESP.getFreeHeap();
@@ -351,19 +340,29 @@ void publishStatus() {
   doc["lastRadarDelta"] = millis() - lastRadarDataTime;
   doc["holdMs"]         = g_holdIntervalMs;
   doc["range_m"]        = g_maxRangeMeters;
+
+  // Warnmeldungen hinzufügen
+  JsonArray warnings = doc.createNestedArray("warnings");
+  if (WiFi.RSSI() < -80) {
+    warnings.add("Schwaches WiFi-Signal");
+  }
+  if (ESP.getFreeHeap() < 10000) {
+    warnings.add("Wenig freier Heap");
+  }
+  if (radarTimeoutCount > 0) {
+    warnings.add("Radar-Timeouts erkannt");
+  }
+  if (millis() - lastRadarDataTime > NO_DATA_TIMEOUT) {
+    warnings.add("Keine Radar-Daten");
+  }
+
   char buf[512];
   serializeJson(doc, buf);
 
-  // SICHERHEIT: Nur publishen wenn verbunden
-  if (!mqttClient.connected()) {
-    return;  // Kein Fehler loggen - wird in mqttReconnect() behandelt
-  }
+  char statusTopic[MQTT_TOPIC_BUFFER_SIZE];
+  buildMqttTopic("status", statusTopic, sizeof(statusTopic));
 
-  // SICHERHEIT: Ohne String-Konkatenation
-  char statusTopic[80];
-  snprintf(statusTopic, sizeof(statusTopic), "%s/status", g_mqttTopic.c_str());
-
-  if (!mqttClient.publish(statusTopic, buf)) {
+  if (!safePublish(statusTopic, buf)) {
     Serial.println("WARN: MQTT publish status failed");
   } else {
     Serial.println("Status published");

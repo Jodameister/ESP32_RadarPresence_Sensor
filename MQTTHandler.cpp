@@ -21,24 +21,26 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   processMqttCommand(String(start));
 }
 
+bool safePublish(const char* topic, const char* payload) {
+  if (!mqttClient.connected()) {
+    return false;
+  }
+  return mqttClient.publish(topic, payload);
+}
+
 void processMqttCommand(const String& cmd) {
   Serial.print("MQTT CMD: ");
   Serial.println(cmd);
 
-  // SICHERHEIT: Topic einmal erstellen (ohne wiederholte String-Konkatenation)
-  char ackTopic[80];
-  snprintf(ackTopic, sizeof(ackTopic), "%s/ack", g_mqttTopic.c_str());
+  char ackTopic[MQTT_TOPIC_BUFFER_SIZE];
+  buildMqttTopic("ack", ackTopic, sizeof(ackTopic));
 
   if (cmd == "config") {
-    if (mqttClient.connected()) {
-      mqttClient.publish(ackTopic, "config OK");
-    }
+    safePublish(ackTopic, "config OK");
     startConfigPortal = true;
   }
   else if (cmd == "reboot") {
-    if (mqttClient.connected()) {
-      mqttClient.publish(ackTopic, "reboot OK");
-    }
+    safePublish(ackTopic, "reboot OK");
     rebootRequested = true;
   }
   else if (cmd == "resetRadar") {
@@ -46,25 +48,23 @@ void processMqttCommand(const String& cmd) {
   }
   else if (cmd.startsWith("setRange:")) {
     float v = cmd.substring(9).toFloat();
-    if (v > 0 && v <= 15) {  // SICHERHEIT: Validierung
+    if (v > 0 && v <= 15) {
       setMaxRadarRange(v);
-    } else if (mqttClient.connected()) {
-      mqttClient.publish(ackTopic, "setRange ERROR: invalid value");
+    } else {
+      safePublish(ackTopic, "setRange ERROR: invalid value");
     }
   }
   else if (cmd.startsWith("setHold:")) {
     uint32_t v = cmd.substring(8).toInt();
-    if (v >= 0 && v <= 10000) {  // SICHERHEIT: Max 10 Sekunden
+    if (v >= 0 && v <= 10000) {
       setHoldInterval(v);
-    } else if (mqttClient.connected()) {
-      mqttClient.publish(ackTopic, "setHold ERROR: invalid value");
+    } else {
+      safePublish(ackTopic, "setHold ERROR: invalid value");
     }
   }
   else if (cmd == "getStatus") {
     publishStatus();
-    if (mqttClient.connected()) {
-      mqttClient.publish(ackTopic, "getStatus OK");
-    }
+    safePublish(ackTopic, "getStatus OK");
   }
   else {
     Serial.print("Unknown command: ");

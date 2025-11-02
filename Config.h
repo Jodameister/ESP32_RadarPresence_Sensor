@@ -7,7 +7,12 @@
 #include <PubSubClient.h>
 
 // Version
-#define FW_VERSION "v1."
+#define FW_VERSION "v1.6"
+
+// Constants
+#define MQTT_TOPIC_BUFFER_SIZE 80
+#define JSON_BUFFER_SIZE 512
+#define RADAR_CMD_DELAY_US 50000  // 50ms in microseconds
 
 // Preferences & network clients
 extern Preferences  prefs;
@@ -30,7 +35,11 @@ extern const int          RADAR_BOOT_PIN;
 
 // Forward declarations
 void setupWiFiManager();
-void saveParamCallback();   // <<< neu
+void saveParamCallback();
+
+// Helper functions
+char* buildMqttTopic(const char* suffix, char* buffer, size_t bufsize);
+void nonBlockingDelay(unsigned long ms);
 
 // Radar internals
 struct RadarTarget {
