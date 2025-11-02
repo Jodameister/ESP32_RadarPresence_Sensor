@@ -246,6 +246,8 @@ Contributions welcome! Please:
 3. Test thoroughly on hardware
 4. Submit pull request with detailed description
 
+For detailed coding, build, and commit conventions see `AGENTS.md`.
+
 ## Author
 
 Developed with assistance from Claude Code.
