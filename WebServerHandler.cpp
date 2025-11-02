@@ -199,6 +199,29 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       transform: translateY(-1px);
     }
 
+    .toggle-btn {
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: var(--button-shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .toggle-btn:hover {
+      background: var(--btn-hover-bg);
+      transform: translateY(-1px);
+    }
+
+    .toggle-btn.active {
+      background: var(--btn-hover-bg);
+    }
+
     h1 {
       background: linear-gradient(90deg, #00d4ff, #0066ff);
       -webkit-background-clip: text;
@@ -465,6 +488,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <div class="info-item"><span class="info-label">RSSI:</span> <span id="rssi" class="info-value">0 dBm</span></div>
       <div class="info-item"><span class="info-label">Heap:</span> <span id="heap" class="info-value">0 KB</span></div>
       <div class="info-item"><span class="info-label">Targets:</span> <span id="targetCount" class="info-value">0</span></div>
+      <div class="info-item"><span class="info-label">X-Achse:</span> <button id="invertToggle" class="toggle-btn" type="button">Normal</button></div>
     </div>
 
     <!-- Radar Visualization -->
@@ -512,13 +536,25 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     const ctx = canvas.getContext('2d');
     const statusEl = document.getElementById('status');
     const themeToggle = document.getElementById('themeToggle');
+    const invertToggle = document.getElementById('invertToggle');
     const THEME_STORAGE_KEY = 'rp-theme';
+    const INVERT_COOKIE_KEY = 'rp-invert-x';
     const prefersDarkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
     function varFallback(value, fallback) {
       if (typeof value !== 'string') return fallback;
       const trimmed = value.trim();
       return trimmed.length ? trimmed : fallback;
+    }
+
+    function readCookie(name) {
+      const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return match ? decodeURIComponent(match[1]) : null;
+    }
+
+    function writeCookie(name, value, days) {
+      const maxAge = (days || 365) * 24 * 60 * 60;
+      document.cookie = name + '=' + encodeURIComponent(value) + '; path=/; max-age=' + maxAge + '; SameSite=Lax';
     }
 
     let configuredRange = 5; // Vom Sensor eingestellte Reichweite
@@ -528,6 +564,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     const CENTER_Y = 30;
     let fallbackTimer = null;
     let eventSource = null;
+    let invertXAxis = false;
+    let lastRadarPayload = null;
 
     const resetReasonMap = {
       1: 'POWERON_RESET',
@@ -560,6 +598,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       if (themeToggle) {
         themeToggle.textContent = isLight ? '🌙 Dark Mode' : '☀️ Light Mode';
       }
+    }
+
+    function updateInvertToggleLabel() {
+      if (!invertToggle) return;
+      invertToggle.textContent = invertXAxis ? 'Invertiert' : 'Normal';
+      invertToggle.classList.toggle('active', invertXAxis);
+      invertToggle.setAttribute('aria-pressed', invertXAxis ? 'true' : 'false');
     }
 
     function initTheme() {
@@ -609,6 +654,25 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         } else if (prefersDarkQuery.addListener) {
           prefersDarkQuery.addListener(handleSystemThemeChange);
         }
+      }
+    }
+
+    function initInvertToggle() {
+      const stored = readCookie(INVERT_COOKIE_KEY);
+      invertXAxis = stored === '1';
+      updateInvertToggleLabel();
+
+      if (invertToggle) {
+        invertToggle.addEventListener('click', () => {
+          invertXAxis = !invertXAxis;
+          updateInvertToggleLabel();
+          writeCookie(INVERT_COOKIE_KEY, invertXAxis ? '1' : '0', 365);
+          if (lastRadarPayload) {
+            updateRadar(lastRadarPayload);
+          } else {
+            drawRadar();
+          }
+        });
       }
     }
 
@@ -773,6 +837,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     }
 
     function updateRadar(data) {
+      if (typeof data.range_m === 'number') {
+        configuredRange = data.range_m;
+      }
+      lastRadarPayload = data;
       drawRadar();
 
       // ESP Info aktualisieren
@@ -783,7 +851,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       document.getElementById('radarSerialRestarts').textContent = (data.radarSerialRestarts !== undefined ? data.radarSerialRestarts : 0);
       document.getElementById('ip').textContent = data.ip || '-';
       document.getElementById('targetCount').textContent = data.targetCount || 0;
-      document.getElementById('maxRange').textContent = (data.range_m || 0).toFixed(1) + 'm';
+      document.getElementById('maxRange').textContent = (configuredRange || 0).toFixed(1) + 'm';
       document.getElementById('uptime').textContent = formatUptimeLabel(data.uptime_min, data.uptime);
       document.getElementById('rssi').textContent = (data.rssi || 0) + ' dBm';
       document.getElementById('heap').textContent = Math.round((data.heap_free || 0) / 1024) + ' KB';
@@ -809,17 +877,23 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
           continue;
         }
 
+        const rawX = typeof t.x === 'number' ? t.x : 0;
+        const rawY = typeof t.y === 'number' ? t.y : 0;
+        const rawAngle = typeof t.angleDeg === 'number' ? t.angleDeg : 0;
+        const xMeters = (invertXAxis ? -rawX : rawX) / 1000.0;
+        const yMeters = rawY / 1000.0;
+        const displayAngle = invertXAxis ? -rawAngle : rawAngle;
+        const displayDistance = typeof t.distance === 'number' ? t.distance / 1000.0 : (typeof t.distRaw === 'number' ? t.distRaw / 1000.0 : 0);
+        const displaySpeed = typeof t.speed === 'number' ? t.speed : 0;
+
         // Target Box aktualisieren
         targetData.innerHTML = `
-          <div><strong>Distance:</strong> ${(t.distance/1000).toFixed(2)}m</div>
-          <div><strong>Angle:</strong> ${t.angleDeg.toFixed(0)}°</div>
-          <div><strong>X:</strong> ${(t.x/1000).toFixed(2)}m</div>
-          <div><strong>Y:</strong> ${(t.y/1000).toFixed(2)}m</div>
-          <div><strong>Speed:</strong> ${t.speed}</div>
+          <div><strong>Distance:</strong> ${displayDistance.toFixed(2)}m</div>
+          <div><strong>Angle:</strong> ${displayAngle.toFixed(0)}°</div>
+          <div><strong>X:</strong> ${xMeters.toFixed(2)}m</div>
+          <div><strong>Y:</strong> ${yMeters.toFixed(2)}m</div>
+          <div><strong>Speed:</strong> ${displaySpeed}</div>
         `;
-
-        const xMeters = t.x / 1000.0;
-        const yMeters = t.y / 1000.0;
 
         // 180° gedreht: Y jetzt nach unten positiv
         const screenX = CENTER_X + xMeters * PIXELS_PER_METER;
@@ -852,6 +926,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     }
 
     initTheme();
+    initInvertToggle();
     drawRadar();
     setupRealtime();
   </script>

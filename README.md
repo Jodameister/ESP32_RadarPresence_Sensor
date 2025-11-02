@@ -163,6 +163,7 @@ RadarPresence/
 - Buttons erlauben Neustart von ESP, Radar sowie das Öffnen des WiFiManager-Portals
 - Dashboard kann über die MQTT-Kommandos `webServer:on` und `webServer:off` gezielt gestartet oder gestoppt werden
 - Eingebauter Dark-/Light-Mode mit lokal gespeicherter Auswahl
+- X-Achse lässt sich per Toggle invertieren (Cookie merkt die Einstellung für gedrehte Sensoren)
 - Warnungen markieren schwaches WLAN, wenig Heap oder ausstehende Radarframes
 
 ## Safety Features
