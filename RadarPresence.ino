@@ -7,11 +7,15 @@
 #include <esp_wifi.h>
 #include <WiFiManager.h>
 #include <ArduinoOTA.h>
+#include <ESPmDNS.h>
+#include <SHA2Builder.h>
+#include <PBKDF2_HMACBuilder.h>
 
 #include "Config.h"
 #include "RadarHandler.h"
 #include "MQTTHandler.h"
 #include "OTAHandler.h"
+#include "WebServerHandler.h"
 
 // WiFiManager parameter handling
 struct ParamInfo {
@@ -133,6 +137,11 @@ void setup() {
 
   mqttReconnect();
 
+  // WebServer setup
+  setupWebServer();
+  Serial.print("WebServer gestartet: http://");
+  Serial.println(WiFi.localIP());
+
   lastRadarDataTime = millis();
   Serial.println("Setup abgeschlossen - starte Loop");
 }
@@ -169,6 +178,9 @@ void loop() {
   // OTA handling
   ArduinoOTA.handle();
   if (otaInProgress) return;
+
+  // WebServer
+  handleWebServer();
 
   // MQTT
   if (!mqttClient.connected()) mqttReconnect();
