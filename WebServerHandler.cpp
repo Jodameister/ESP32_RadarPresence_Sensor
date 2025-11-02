@@ -50,15 +50,153 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
+    :root {
+      --body-bg: #000000;
+      --body-text: #f5f5f7;
+      --muted-text: rgba(245, 245, 247, 0.7);
+      --card-bg: rgba(29, 29, 31, 0.72);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --card-border-hover: rgba(255, 255, 255, 0.15);
+      --card-text: #f5f5f7;
+      --card-shadow: none;
+      --card-shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.3);
+      --canvas-bg: rgba(0, 0, 0, 0.4);
+      --canvas-fill: #1a1a2a;
+      --canvas-border: rgba(255, 255, 255, 0.05);
+      --status-connected-bg: rgba(52, 199, 89, 0.15);
+      --status-connected-border: rgba(52, 199, 89, 0.3);
+      --status-connected-text: #34c759;
+      --status-disconnected-bg: rgba(255, 69, 58, 0.15);
+      --status-disconnected-border: rgba(255, 69, 58, 0.3);
+      --status-disconnected-text: #ff453a;
+      --btn-bg: rgba(99, 102, 241, 0.15);
+      --btn-hover-bg: rgba(99, 102, 241, 0.25);
+      --btn-text: #f5f5f7;
+      --btn-border: rgba(99, 102, 241, 0.35);
+      --btn-ripple: rgba(255, 255, 255, 0.1);
+      --esp-info-gradient: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(52, 199, 89, 0.1));
+      --radar-settings-gradient: linear-gradient(135deg, rgba(255, 204, 0, 0.1), rgba(255, 149, 0, 0.1));
+      --warnings-gradient: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(10, 132, 255, 0.1));
+      --button-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+      --canvas-grid-color: #2a3a4a;
+      --canvas-arc-color: #3a4a5a;
+      --canvas-label-color: #6a7a8a;
+      --divider-color: rgba(255, 255, 255, 0.05);
+      --accent-color: #0a84ff;
+      --target-box-gradient: linear-gradient(135deg, rgba(255, 159, 10, 0.1), rgba(255, 204, 0, 0.1));
+      --target-strong-color: rgba(245, 245, 247, 0.6);
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Arial, sans-serif;
-      background: #000000;
-      color: #f5f5f7;
+      background: var(--body-bg);
+      color: var(--body-text);
       margin: 0;
       padding: 12px 20px;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+    }
+
+    body.dark-mode {
+      --body-bg: #000000;
+      --body-text: #f5f5f7;
+      --muted-text: rgba(245, 245, 247, 0.7);
+      --card-bg: rgba(29, 29, 31, 0.72);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --card-border-hover: rgba(255, 255, 255, 0.15);
+      --card-text: #f5f5f7;
+      --card-shadow: none;
+      --card-shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.3);
+      --canvas-bg: rgba(0, 0, 0, 0.4);
+      --canvas-fill: #1a1a2a;
+      --canvas-border: rgba(255, 255, 255, 0.05);
+      --status-connected-bg: rgba(52, 199, 89, 0.15);
+      --status-connected-border: rgba(52, 199, 89, 0.3);
+      --status-connected-text: #34c759;
+      --status-disconnected-bg: rgba(255, 69, 58, 0.15);
+      --status-disconnected-border: rgba(255, 69, 58, 0.3);
+      --status-disconnected-text: #ff453a;
+      --btn-bg: rgba(99, 102, 241, 0.15);
+      --btn-hover-bg: rgba(99, 102, 241, 0.25);
+      --btn-text: #f5f5f7;
+      --btn-border: rgba(99, 102, 241, 0.35);
+      --btn-ripple: rgba(255, 255, 255, 0.1);
+      --esp-info-gradient: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(52, 199, 89, 0.1));
+      --radar-settings-gradient: linear-gradient(135deg, rgba(255, 204, 0, 0.1), rgba(255, 149, 0, 0.1));
+      --warnings-gradient: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(10, 132, 255, 0.1));
+      --button-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+      --canvas-grid-color: #2a3a4a;
+      --canvas-arc-color: #3a4a5a;
+      --canvas-label-color: #6a7a8a;
+      --divider-color: rgba(255, 255, 255, 0.05);
+      --accent-color: #0a84ff;
+      --target-box-gradient: linear-gradient(135deg, rgba(255, 159, 10, 0.1), rgba(255, 204, 0, 0.1));
+      --target-strong-color: rgba(245, 245, 247, 0.6);
+    }
+
+    body.light-mode {
+      --body-bg: #f5f5f7;
+      --body-text: #1c1c1e;
+      --muted-text: rgba(60, 60, 67, 0.6);
+      --card-bg: rgba(255, 255, 255, 0.92);
+      --card-border: rgba(0, 0, 0, 0.08);
+      --card-border-hover: rgba(0, 0, 0, 0.18);
+      --card-text: #1c1c1e;
+      --card-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+      --card-shadow-hover: 0 16px 36px rgba(0, 0, 0, 0.12);
+      --canvas-bg: rgba(255, 255, 255, 0.65);
+      --canvas-fill: #ffffff;
+      --canvas-border: rgba(0, 0, 0, 0.08);
+      --status-connected-bg: rgba(76, 217, 100, 0.2);
+      --status-connected-border: rgba(76, 217, 100, 0.45);
+      --status-connected-text: #2c7c33;
+      --status-disconnected-bg: rgba(255, 69, 58, 0.18);
+      --status-disconnected-border: rgba(255, 69, 58, 0.35);
+      --status-disconnected-text: #b3261e;
+      --btn-bg: rgba(0, 122, 255, 0.12);
+      --btn-hover-bg: rgba(0, 122, 255, 0.2);
+      --btn-text: #0b1a33;
+      --btn-border: rgba(0, 122, 255, 0.25);
+      --btn-ripple: rgba(0, 0, 0, 0.12);
+      --esp-info-gradient: linear-gradient(135deg, rgba(0, 122, 255, 0.18), rgba(52, 199, 89, 0.18));
+      --radar-settings-gradient: linear-gradient(135deg, rgba(255, 204, 0, 0.22), rgba(255, 149, 0, 0.18));
+      --warnings-gradient: linear-gradient(135deg, rgba(0, 122, 255, 0.2), rgba(10, 132, 255, 0.16));
+      --button-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+      --canvas-grid-color: rgba(60, 60, 67, 0.18);
+      --canvas-arc-color: rgba(60, 60, 67, 0.25);
+      --canvas-label-color: rgba(60, 60, 67, 0.45);
+      --divider-color: rgba(0, 0, 0, 0.08);
+      --accent-color: #0a84ff;
+      --target-box-gradient: linear-gradient(135deg, rgba(255, 183, 77, 0.18), rgba(255, 214, 102, 0.18));
+      --target-strong-color: rgba(60, 60, 67, 0.7);
+    }
+
+    #theme-switcher {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      max-width: 1600px;
+      margin: 0 auto 16px;
+    }
+
+    .theme-toggle-btn {
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      padding: 10px 20px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: var(--button-shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--btn-hover-bg);
+      transform: translateY(-1px);
     }
 
     h1 {
@@ -84,14 +222,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       backdrop-filter: blur(20px);
     }
     #status.connected {
-      background: rgba(52, 199, 89, 0.15);
-      border: 1px solid rgba(52, 199, 89, 0.3);
-      color: #34c759;
+      background: var(--status-connected-bg);
+      border: 1px solid var(--status-connected-border);
+      color: var(--status-connected-text);
     }
     #status.disconnected {
-      background: rgba(255, 69, 58, 0.15);
-      border: 1px solid rgba(255, 69, 58, 0.3);
-      color: #ff453a;
+      background: var(--status-disconnected-bg);
+      border: 1px solid var(--status-disconnected-border);
+      color: var(--status-disconnected-text);
     }
 
     /* Dashboard Grid */
@@ -106,40 +244,42 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
     /* Card Base Style - Apple Glassmorphism */
     .card {
-      background: rgba(29, 29, 31, 0.72);
+      background: var(--card-bg);
       backdrop-filter: saturate(180%) blur(20px);
       border-radius: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--card-border);
       padding: 24px;
       transition: all 0.3s ease;
+      box-shadow: var(--card-shadow);
+      color: var(--card-text);
     }
     .card:hover {
-      border-color: rgba(255, 255, 255, 0.15);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      border-color: var(--card-border-hover);
+      box-shadow: var(--card-shadow-hover);
     }
     .card h3 {
       font-size: 17px;
       font-weight: 600;
       margin-bottom: 16px;
-      color: #f5f5f7;
+      color: var(--card-text);
       letter-spacing: -0.3px;
     }
 
     /* ESP Info Box */
     #esp-info {
       grid-row: 1;
-      background: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(52, 199, 89, 0.1));
+      background: var(--esp-info-gradient);
     }
 
     /* Radar Canvas */
     canvas {
       grid-row: 1;
       grid-column: 2;
-      background: rgba(0, 0, 0, 0.4);
+      background: var(--canvas-bg);
       border-radius: 12px;
       width: 100%;
       height: 100%;
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--canvas-border);
     }
 
     /* Control Buttons */
@@ -153,7 +293,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     /* Radar Settings */
     #radar-settings {
       grid-row: 3;
-      background: linear-gradient(135deg, rgba(255, 204, 0, 0.1), rgba(255, 149, 0, 0.1));
+      background: var(--radar-settings-gradient);
     }
 
     /* Target Info */
@@ -169,12 +309,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     #warnings {
       grid-row: 3;
       grid-column: 2;
-      background: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(10, 132, 255, 0.1));
+      background: var(--warnings-gradient);
     }
     /* Apple Buttons */
     .btn {
       padding: 14px 20px;
-      border: none;
       border-radius: 12px;
       font-size: 15px;
       font-weight: 600;
@@ -185,6 +324,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       letter-spacing: -0.2px;
       position: relative;
       overflow: hidden;
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      box-shadow: var(--button-shadow);
+      backdrop-filter: blur(12px);
     }
     .btn::before {
       content: '';
@@ -194,13 +338,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       width: 0;
       height: 0;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--btn-ripple);
       transform: translate(-50%, -50%);
       transition: width 0.6s, height 0.6s;
     }
     .btn:hover::before {
       width: 300px;
       height: 300px;
+    }
+    .btn:hover {
+      background: var(--btn-hover-bg);
     }
     .btn-danger {
       background: linear-gradient(135deg, #ff453a 0%, #ff2d55 100%);
@@ -228,23 +375,23 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       display: flex;
       justify-content: space-between;
       padding: 8px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid var(--divider-color);
     }
     .info-item:last-child {
       border-bottom: none;
     }
     .info-label {
       font-weight: 500;
-      color: rgba(245, 245, 247, 0.6);
+      color: var(--muted-text);
     }
     .info-value {
-      color: #0a84ff;
+      color: var(--accent-color);
       font-weight: 600;
     }
 
     /* Target Boxes */
     .target-box {
-      background: linear-gradient(135deg, rgba(255, 159, 10, 0.1), rgba(255, 204, 0, 0.1));
+      background: var(--target-box-gradient);
     }
     .target-data {
       font-size: 13px;
@@ -255,13 +402,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       display: flex;
       justify-content: space-between;
       padding: 6px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid var(--divider-color);
     }
     .target-data div:last-child {
       border-bottom: none;
     }
     .target-data strong {
-      color: rgba(245, 245, 247, 0.6);
+      color: var(--target-strong-color);
       font-weight: 500;
     }
 
@@ -277,6 +424,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     }
 
     @media (max-width: 1024px) {
+      #theme-switcher {
+        justify-content: center;
+        margin-bottom: 12px;
+      }
       #dashboard {
         grid-template-columns: 1fr;
         grid-template-rows: auto;
@@ -294,7 +445,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     }
   </style>
 </head>
-<body>
+<body class="dark-mode">
+  <div id="theme-switcher">
+    <button id="themeToggle" class="theme-toggle-btn" type="button">☀️ Light Mode</button>
+  </div>
   <h1>🎯 Radar Live Monitor</h1>
   <div id="status" class="connected">Verbunden</div>
 
@@ -307,7 +461,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <div class="info-item"><span class="info-label">Temperatur:</span> <span id="temperature" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Radar Restarts:</span> <span id="radarSerialRestarts" class="info-value">0</span></div>
       <div class="info-item"><span class="info-label">IP:</span> <span id="ip" class="info-value">-</span></div>
-      <div class="info-item"><span class="info-label">Uptime:</span> <span id="uptime" class="info-value">0 min</span></div>
+      <div class="info-item"><span class="info-label">Uptime:</span> <span id="uptime" class="info-value">000:00</span></div>
       <div class="info-item"><span class="info-label">RSSI:</span> <span id="rssi" class="info-value">0 dBm</span></div>
       <div class="info-item"><span class="info-label">Heap:</span> <span id="heap" class="info-value">0 KB</span></div>
       <div class="info-item"><span class="info-label">Targets:</span> <span id="targetCount" class="info-value">0</span></div>
@@ -357,6 +511,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     const canvas = document.getElementById('radar');
     const ctx = canvas.getContext('2d');
     const statusEl = document.getElementById('status');
+    const themeToggle = document.getElementById('themeToggle');
+    const THEME_STORAGE_KEY = 'rp-theme';
+    const prefersDarkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+    function varFallback(value, fallback) {
+      if (typeof value !== 'string') return fallback;
+      const trimmed = value.trim();
+      return trimmed.length ? trimmed : fallback;
+    }
 
     let configuredRange = 5; // Vom Sensor eingestellte Reichweite
     const MAX_RANGE = 8; // Maximale Radar-Reichweite
@@ -388,6 +551,65 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       if (code === undefined || code === null) return '-';
       if (typeof code === 'string') return code;
       return resetReasonMap[code] || ('code ' + code);
+    }
+
+    function applyTheme(mode) {
+      const isLight = mode === 'light';
+      document.body.classList.toggle('light-mode', isLight);
+      document.body.classList.toggle('dark-mode', !isLight);
+      if (themeToggle) {
+        themeToggle.textContent = isLight ? '🌙 Dark Mode' : '☀️ Light Mode';
+      }
+    }
+
+    function initTheme() {
+      let storedMode = null;
+      try {
+        storedMode = localStorage.getItem(THEME_STORAGE_KEY);
+      } catch (err) {
+        storedMode = null;
+      }
+
+      let initialMode = storedMode;
+      if (initialMode !== 'light' && initialMode !== 'dark') {
+        const prefersDark = prefersDarkQuery ? prefersDarkQuery.matches : true;
+        initialMode = prefersDark ? 'dark' : 'light';
+      }
+
+      applyTheme(initialMode);
+
+      if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+          const newMode = document.body.classList.contains('light-mode') ? 'dark' : 'light';
+          applyTheme(newMode);
+          try {
+            localStorage.setItem(THEME_STORAGE_KEY, newMode);
+          } catch (err) {
+            /* ignore storage errors */
+          }
+        });
+      }
+
+      const handleSystemThemeChange = (event) => {
+        let stored = null;
+        try {
+          stored = localStorage.getItem(THEME_STORAGE_KEY);
+        } catch (err) {
+          stored = null;
+        }
+        if (stored === 'light' || stored === 'dark') {
+          return; // user preference overrides system
+        }
+        applyTheme(event.matches ? 'dark' : 'light');
+      };
+
+      if (prefersDarkQuery) {
+        if (prefersDarkQuery.addEventListener) {
+          prefersDarkQuery.addEventListener('change', handleSystemThemeChange);
+        } else if (prefersDarkQuery.addListener) {
+          prefersDarkQuery.addListener(handleSystemThemeChange);
+        }
+      }
     }
 
     function formatUptimeLabel(minutes, formatted) {
@@ -468,14 +690,19 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     }
 
     function drawRadar() {
-      ctx.fillStyle = '#1a1a2a';
+      const styles = getComputedStyle(document.body);
+      const gridColor = varFallback(styles.getPropertyValue('--canvas-grid-color'), '#2a3a4a');
+      const arcColor = varFallback(styles.getPropertyValue('--canvas-arc-color'), '#3a4a5a');
+      const labelColor = varFallback(styles.getPropertyValue('--canvas-label-color'), '#6a7a8a');
+
+      ctx.fillStyle = varFallback(styles.getPropertyValue('--canvas-fill'), '#1a1a2a');
       ctx.fillRect(0, 0, 800, 600);
 
       const maxRadius = MAX_RANGE * PIXELS_PER_METER;
       const configuredRadius = configuredRange * PIXELS_PER_METER;
 
       // Radial lines (nach Süden: Halbkreis nach unten, -90° bis +90°)
-      ctx.strokeStyle = '#2a3a4a';
+      ctx.strokeStyle = gridColor;
       ctx.lineWidth = 1;
       for(let angle = -90; angle <= 90; angle += 15) {
         const rad = (angle + 90) * Math.PI / 180;
@@ -488,7 +715,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
 
       // Concentric arcs für alle 15 Meter
-      ctx.strokeStyle = '#3a4a5a';
+      ctx.strokeStyle = arcColor;
       ctx.lineWidth = 1;
       for(let m = 1; m <= MAX_RANGE; m++) {
         const r = m * PIXELS_PER_METER;
@@ -498,7 +725,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
 
       // Range labels für alle Meter
-      ctx.fillStyle = '#6a7a8a';
+      ctx.fillStyle = labelColor;
       ctx.font = '12px monospace';
       ctx.textAlign = 'center';
       for(let m = 1; m <= MAX_RANGE; m++) {
@@ -569,7 +796,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       if(data.warnings && data.warnings.length > 0) {
         warningList.innerHTML = data.warnings.map(w => '<div class="warning-item">⚠️ ' + w + '</div>').join('');
       } else {
-        warningList.innerHTML = '<div style="color: #aaa; font-size: 13px;">Keine Warnungen</div>';
+        warningList.innerHTML = '<div style="color: var(--muted-text); font-size: 13px;">Keine Warnungen</div>';
       }
 
       // Targets zeichnen und Boxen aktualisieren
@@ -578,7 +805,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         const targetData = document.getElementById('target' + i + '-data');
 
         if(!t || !t.presence) {
-          targetData.innerHTML = '<div style="color: rgba(245, 245, 247, 0.4); text-align: center; padding: 20px;">No target detected</div>';
+          targetData.innerHTML = '<div style="color: var(--muted-text); text-align: center; padding: 20px;">No target detected</div>';
           continue;
         }
 
@@ -624,6 +851,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
     }
 
+    initTheme();
     drawRadar();
     setupRealtime();
   </script>

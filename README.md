@@ -162,6 +162,7 @@ RadarPresence/
 - Frontend streamt Live-Daten via Server-Sent Events (`/events`) und fällt bei Bedarf auf 1 s HTTP-Polling (`/api/radar`) zurück
 - Buttons erlauben Neustart von ESP, Radar sowie das Öffnen des WiFiManager-Portals
 - Dashboard kann über die MQTT-Kommandos `webServer:on` und `webServer:off` gezielt gestartet oder gestoppt werden
+- Eingebauter Dark-/Light-Mode mit lokal gespeicherter Auswahl
 - Warnungen markieren schwaches WLAN, wenig Heap oder ausstehende Radarframes
 
 ## Safety Features
