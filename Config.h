@@ -7,7 +7,7 @@
 #include <PubSubClient.h>
 
 // Version
-#define FW_VERSION "v1.6"
+#define FW_VERSION "v1.7"
 
 // Constants
 #define MQTT_TOPIC_BUFFER_SIZE 80
