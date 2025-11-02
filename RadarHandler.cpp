@@ -232,7 +232,15 @@ void readRadarData() {
       Serial.println("WARN: radarBuf overflow reset");
     }
 
-    radarBuf[radarCount] = Serial1.read();
+    uint8_t byte = Serial1.read();
+
+    // Sync-Optimierung: Bei leerem Buffer nur auf Start-Marker warten
+    if (radarCount == 0 && byte != 0xAA) {
+      readCnt++;
+      continue; // Warte auf Frame-Start
+    }
+
+    radarBuf[radarCount] = byte;
     radarCount++;
     readCnt++;
 
