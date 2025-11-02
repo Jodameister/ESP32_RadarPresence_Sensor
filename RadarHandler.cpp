@@ -109,6 +109,7 @@ void setHoldInterval(uint32_t ms) {
 
 void restartRadarSerial() {
   Serial.println("Restarting radar serial...");
+  radarSerialRestartCount++;
 
   // SICHERHEIT: Buffer leeren BEVOR Serial1.end()
   while (Serial1.available()) {
