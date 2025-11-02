@@ -30,8 +30,8 @@ unsigned long lastWiFiCheck     = 0;
 
 const unsigned long RADAR_INTERVAL_MS = 100;
 const unsigned long STATUS_INTERVAL   = 10000;
-const unsigned long NO_DATA_TIMEOUT   = 3000;
-const unsigned long RESTART_TIMEOUT   = 30000;
+const unsigned long NO_DATA_TIMEOUT   = 5000;
+const unsigned long RESTART_TIMEOUT   = 60000;
 
 const int RADAR_BOOT_PIN = 0;
 

@@ -96,9 +96,28 @@ void setup() {
   // WiFi.setAutoReconnect(true) macht den Reconnect automatisch
   WiFi.onEvent(
     [](arduino_event_id_t evt, WiFiEventInfo_t info){
-      if (evt == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
-        Serial.println("WiFi disconnected");
-        wifiReconnectCount++;
+      switch (evt) {
+        case ARDUINO_EVENT_WIFI_STA_START:
+          Serial.println("WiFi event: STA_START");
+          break;
+        case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+          Serial.printf("WiFi event: CONNECTED to %s\n",
+                        reinterpret_cast<const char*>(info.wifi_sta_connected.ssid));
+          break;
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+          Serial.printf("WiFi event: GOT_IP %s\n", WiFi.localIP().toString().c_str());
+          break;
+        case ARDUINO_EVENT_WIFI_STA_LOST_IP:
+          Serial.println("WiFi event: LOST_IP");
+          break;
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+          Serial.printf("WiFi event: DISCONNECTED (reason=%d)\n",
+                        info.wifi_sta_disconnected.reason);
+          wifiReconnectCount++;
+          break;
+        default:
+          Serial.printf("WiFi event: %d\n", evt);
+          break;
       }
     }
   );
