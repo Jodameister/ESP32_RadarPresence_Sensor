@@ -54,8 +54,16 @@ void processMqttCommand(const String& cmd) {
     restartRadarSerial();
   }
   else if (cmd.startsWith("setRange:")) {
-    float v = cmd.substring(9).toFloat();
-    if (v > 0 && v <= 15) {
+    String val = cmd.substring(9);
+    if (val.length() == 0) {
+      safePublish(ackTopic, "setRange ERROR: invalid value");
+      return;
+    }
+    char* endPtr = nullptr;
+    float v = strtof(val.c_str(), &endPtr);
+    if (endPtr == val.c_str() || *endPtr != '\0') {
+      safePublish(ackTopic, "setRange ERROR: invalid value");
+    } else if (v > 0.5f && v <= 15.0f) {
       setMaxRadarRange(v);
     } else {
       safePublish(ackTopic, "setRange ERROR: invalid value");

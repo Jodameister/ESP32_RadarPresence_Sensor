@@ -118,7 +118,7 @@ Available commands:
 | `config` | Open WiFi config portal | `config` |
 | `reboot` | Restart ESP32 | `reboot` |
 | `resetRadar` | Restart radar serial connection | `resetRadar` |
-| `setRange:<meters>` | Set detection range (0.7-10.5m) | `setRange:3.5` |
+| `setRange:<meters>` | Set detection range (0.7-15m) | `setRange:4` |
 | `setHold:<ms>` | Set hold interval (0-10000ms) | `setHold:1000` |
 | `getStatus` | Request immediate status update | `getStatus` |
 
