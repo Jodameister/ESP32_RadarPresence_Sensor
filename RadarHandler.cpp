@@ -39,16 +39,17 @@ bool readSensorAck(uint16_t expectedCmd, uint32_t timeoutMs) {
       uint16_t len = buf[4] | (buf[5] << 8);
       uint16_t full = 4 + 2 + len + 4;
       if (idx >= full) {
-        uint16_t cmd = buf[6] | (buf[7] << 8);
-        uint16_t st  = buf[8] | (buf[9] << 8);
-        if (cmd == expectedCmd) {
+        uint16_t cmdRaw = buf[6] | (buf[7] << 8);
+        uint16_t st     = buf[8] | (buf[9] << 8);
+        uint16_t cmd    = cmdRaw & 0x00FF;
+        if (cmd == expectedCmd || cmdRaw == expectedCmd) {
           if (st != 0) {
-            Serial.printf("Radar ACK 0x%04X status=%u\n", cmd, st);
+            Serial.printf("Radar ACK 0x%04X status=%u\n", cmdRaw, st);
           }
           return st == 0;
         }
         // Unerwartetes ACK verwerfen und weiter warten
-        Serial.printf("Radar ACK unexpected cmd=0x%04X expecting 0x%04X\n", cmd, expectedCmd);
+        Serial.printf("Radar ACK unexpected cmd=0x%04X expecting 0x%04X\n", cmdRaw, expectedCmd);
         idx = 0;
       }
     }
