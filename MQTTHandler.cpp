@@ -25,15 +25,19 @@ void processMqttCommand(const String& cmd) {
   Serial.print("MQTT CMD: ");
   Serial.println(cmd);
 
+  // SICHERHEIT: Topic einmal erstellen (ohne wiederholte String-Konkatenation)
+  char ackTopic[80];
+  snprintf(ackTopic, sizeof(ackTopic), "%s/ack", g_mqttTopic.c_str());
+
   if (cmd == "config") {
     if (mqttClient.connected()) {
-      mqttClient.publish((g_mqttTopic + "/ack").c_str(), "config OK");
+      mqttClient.publish(ackTopic, "config OK");
     }
     startConfigPortal = true;
   }
   else if (cmd == "reboot") {
     if (mqttClient.connected()) {
-      mqttClient.publish((g_mqttTopic + "/ack").c_str(), "reboot OK");
+      mqttClient.publish(ackTopic, "reboot OK");
     }
     rebootRequested = true;
   }
@@ -45,7 +49,7 @@ void processMqttCommand(const String& cmd) {
     if (v > 0 && v <= 15) {  // SICHERHEIT: Validierung
       setMaxRadarRange(v);
     } else if (mqttClient.connected()) {
-      mqttClient.publish((g_mqttTopic + "/ack").c_str(), "setRange ERROR: invalid value");
+      mqttClient.publish(ackTopic, "setRange ERROR: invalid value");
     }
   }
   else if (cmd.startsWith("setHold:")) {
@@ -53,13 +57,13 @@ void processMqttCommand(const String& cmd) {
     if (v >= 0 && v <= 10000) {  // SICHERHEIT: Max 10 Sekunden
       setHoldInterval(v);
     } else if (mqttClient.connected()) {
-      mqttClient.publish((g_mqttTopic + "/ack").c_str(), "setHold ERROR: invalid value");
+      mqttClient.publish(ackTopic, "setHold ERROR: invalid value");
     }
   }
   else if (cmd == "getStatus") {
     publishStatus();
     if (mqttClient.connected()) {
-      mqttClient.publish((g_mqttTopic + "/ack").c_str(), "getStatus OK");
+      mqttClient.publish(ackTopic, "getStatus OK");
     }
   }
   else {
@@ -82,14 +86,18 @@ void mqttReconnect() {
   lastAttempt = now;
 
   Serial.print("MQTT reconnect... ");
-  String id = "RD03D-" + String(random(0xffff), HEX);
+
+  // SICHERHEIT: Ohne String-Konkatenation
+  char id[20];
+  snprintf(id, sizeof(id), "RD03D-%04X", random(0xffff));
+
+  char willTopic[80];
+  snprintf(willTopic, sizeof(willTopic), "%s/status", g_mqttTopic.c_str());
 
   // SICHERHEIT: Mit Last Will Testament
-  // connect(clientId, willTopic, willQoS, willRetain, willMessage)
-  String willTopic = g_mqttTopic + "/status";
   bool connected = mqttClient.connect(
-    id.c_str(),
-    willTopic.c_str(),
+    id,
+    willTopic,
     0,                           // QoS 0
     true,                        // Retain
     "{\"status\":\"offline\"}"   // LWT Message
@@ -97,7 +105,11 @@ void mqttReconnect() {
 
   if (connected) {
     Serial.println("OK");
-    mqttClient.subscribe((g_mqttTopic + "/cmd").c_str());
+
+    // SICHERHEIT: Ohne String-Konkatenation
+    char cmdTopic[80];
+    snprintf(cmdTopic, sizeof(cmdTopic), "%s/cmd", g_mqttTopic.c_str());
+    mqttClient.subscribe(cmdTopic);
 
     // Sofort Status senden
     publishStatus();
