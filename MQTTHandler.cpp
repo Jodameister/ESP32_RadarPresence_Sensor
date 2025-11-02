@@ -3,6 +3,7 @@
 #include "MQTTHandler.h"
 #include "Config.h"
 #include "RadarHandler.h"
+#include "WebServerHandler.h"
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   // SICHERHEIT: Effizienter ohne String-Konkatenation
@@ -81,6 +82,18 @@ void processMqttCommand(const String& cmd) {
     publishStatus();
     safePublish(ackTopic, "getStatus OK");
   }
+  else if (cmd == "webServer:on") {
+    if (configPortalActive) {
+      safePublish(ackTopic, "webServer ERROR: config portal active");
+    } else {
+      setupWebServer();
+      safePublish(ackTopic, "webServer ON");
+    }
+  }
+  else if (cmd == "webServer:off") {
+    stopWebServer();
+    safePublish(ackTopic, "webServer OFF");
+  }
   else if (cmd == "help") {
     const char* helpMsg =
       "Available commands:\n"
@@ -90,6 +103,8 @@ void processMqttCommand(const String& cmd) {
       "setRange:<value> - Set max range (0-15m)\n"
       "setHold:<value> - Set hold interval (0-10000ms)\n"
       "getStatus - Publish current status\n"
+      "webServer:on - Start HTTP status server\n"
+      "webServer:off - Stop HTTP status server\n"
       "help - Show this help";
     safePublish(ackTopic, helpMsg);
   }

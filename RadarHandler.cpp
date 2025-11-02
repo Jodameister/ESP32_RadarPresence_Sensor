@@ -3,6 +3,7 @@
 #include "RadarHandler.h"
 #include "Config.h"
 #include "MQTTHandler.h"
+#include "WebServerHandler.h"
 #include <ArduinoJson.h>
 #include <esp_system.h>
 
@@ -366,6 +367,7 @@ void publishStatus() {
   doc["lastRadarDelta"] = millis() - lastRadarDataTime;
   doc["holdMs"]         = g_holdIntervalMs;
   doc["range_m"]        = g_maxRangeMeters;
+  doc["webServer"]      = isWebServerRunning();
 
   // Warnmeldungen hinzufügen
   JsonArray warnings = doc.createNestedArray("warnings");

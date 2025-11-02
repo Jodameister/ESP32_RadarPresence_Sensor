@@ -42,8 +42,10 @@ void configureWiFiManager(WiFiManager& wm);
 void setupWiFiManagerParams(WiFiManager& wm);
 void handleMqttCommands();
 void maintainWiFi();
+bool syncConfigFromWiFiManager();
 
 void maintainWiFi() {
+  if (configPortalActive) return;
   static const unsigned long WIFI_RECONNECT_INTERVAL = 15000UL;
   static const unsigned long WIFI_MAX_OUTAGE = 300000UL; // 5 minutes
   unsigned long now = millis();
@@ -87,6 +89,29 @@ void setupWiFiManagerParams(WiFiManager& wm) {
   }
 }
 
+bool syncConfigFromWiFiManager() {
+  bool changed = false;
+  for (size_t i = 0; i < sizeof(paramInfos) / sizeof(paramInfos[0]); i++) {
+    const char* value = paramObjects[i].getValue();
+    if (!value) continue;
+    if (paramInfos[i].val != value) {
+      paramInfos[i].val = value;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    saveParamCallback();
+    mqttClient.disconnect();
+    mqttClient.setServer(g_mqttServer.c_str(), g_mqttPort.toInt());
+    WiFi.setHostname(g_host.c_str());
+    ArduinoOTA.setHostname(g_host.c_str());
+    ArduinoOTA.setPassword(g_otaPass.c_str());
+    Serial.println("Konfiguration aus Portal übernommen");
+  }
+  return changed;
+}
+
 // ---------------------------------------------------------
 // setup()
 // ---------------------------------------------------------
@@ -117,6 +142,7 @@ void setup() {
   esp_wifi_set_ps(WIFI_PS_NONE);
   lastWiFiConnected = millis();
   wifiReconnectIssued = false;
+  syncConfigFromWiFiManager();
 
   // SICHERHEIT: Einfacher Event-Handler ohne WiFi-API Aufrufe
   // WiFi.setAutoReconnect(true) macht den Reconnect automatisch
@@ -268,11 +294,27 @@ void handleMqttCommands() {
   if (startConfigPortal) {
     startConfigPortal = false;
     Serial.println("MQTT 'config' → öffne Config‑Portal");
+    configPortalActive = true;
+
+    stopWebServer();
+    mqttClient.disconnect();
+
     WiFiManager wm2;
     configureWiFiManager(wm2);
-    wm2.startConfigPortal("OnDemandAP","12345678");
+    bool portalOk = wm2.startConfigPortal("OnDemandAP","12345678");
+    configPortalActive = false;
+
+    bool updated = syncConfigFromWiFiManager();
+    setupWebServer();
     Serial.println("Portal beendet → reconnect WIFI");
-    WiFi.reconnect();
+    if (!portalOk) {
+      WiFi.reconnect();
+    }
+    wifiReconnectIssued = false;
+    lastWiFiReconnectAttempt = 0;
+    if (updated || portalOk) {
+      mqttReconnect();
+    }
   }
   if (rebootRequested) {
     rebootRequested = false;

@@ -50,6 +50,7 @@ uint32_t       wifiReconnectCount   = 0;
 uint32_t       radarTimeoutCount    = 0;
 uint32_t       radarSerialRestartCount = 0;
 bool           wifiReconnectIssued  = false;
+bool           configPortalActive   = false;
 
 const float    ALPHA             = 0.4f;
 const float    RANGE_GATE_SIZE   = 0.7f;

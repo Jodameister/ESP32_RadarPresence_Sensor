@@ -9,6 +9,8 @@
 #include <esp_system.h>
 
 WebServer webServer(80);
+static bool serverConfigured = false;
+static bool serverRunning = false;
 
 static const char* resetReasonToString(esp_reset_reason_t reason) {
   switch (reason) {
@@ -751,18 +753,42 @@ void handleCommand() {
 }
 
 void setupWebServer() {
-  webServer.on("/", handleRoot);
-  webServer.on("/api/radar", handleRadarAPI);
-  webServer.on("/events", handleSSE);
-  webServer.on("/api/cmd", handleCommand);
+  if (!serverConfigured) {
+    webServer.on("/", handleRoot);
+    webServer.on("/api/radar", handleRadarAPI);
+    webServer.on("/events", handleSSE);
+    webServer.on("/api/cmd", handleCommand);
+    serverConfigured = true;
+  }
 
-  webServer.begin();
-  Serial.println("WebServer started on port 80");
+  if (!serverRunning) {
+    webServer.begin();
+    serverRunning = true;
+    Serial.println("WebServer started on port 80");
+  }
+}
+
+void stopWebServer() {
+  if (!serverRunning) return;
+  for (int i = 0; i < MAX_SSE_CLIENTS; i++) {
+    if (sseClients[i].client.connected()) {
+      sseClients[i].client.stop();
+    }
+    sseClients[i].active = false;
+  }
+  webServer.stop();
+  serverRunning = false;
+  Serial.println("WebServer stopped");
 }
 
 void handleWebServer() {
+  if (!serverRunning) return;
   webServer.handleClient();
   broadcastRadarSSE();
+}
+
+bool isWebServerRunning() {
+  return serverRunning;
 }
 
 void sendRadarData() {

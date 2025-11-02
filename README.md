@@ -103,7 +103,8 @@ Published every 10 seconds:
   "radarSerialRestarts": 1,
   "lastRadarDelta": 23,
   "holdMs": 500,
-  "range_m": 2.1
+  "range_m": 2.1,
+  "webServer": true
 }
 ```
 
@@ -121,6 +122,8 @@ Available commands:
 | `setRange:<meters>` | Set detection range (0.7-15m) | `setRange:4` |
 | `setHold:<ms>` | Set hold interval (0-10000ms) | `setHold:1000` |
 | `getStatus` | Request immediate status update | `getStatus` |
+| `webServer:on` | Start the embedded HTTP status dashboard | `webServer:on` |
+| `webServer:off` | Stop the HTTP status dashboard | `webServer:off` |
 
 #### `<topic>/ack` - Command Acknowledgments
 
@@ -155,6 +158,7 @@ RadarPresence/
 - Aufruf über `http://<hostname-oder-ip>/` (Hostname wird im WiFiManager gesetzt)
 - Frontend streamt Live-Daten via Server-Sent Events (`/events`) und fällt bei Bedarf auf 1 s HTTP-Polling (`/api/radar`) zurück
 - Buttons erlauben Neustart von ESP, Radar sowie das Öffnen des WiFiManager-Portals
+- Dashboard kann über die MQTT-Kommandos `webServer:on` und `webServer:off` gezielt gestartet oder gestoppt werden
 - Warnungen markieren schwaches WLAN, wenig Heap oder ausstehende Radarframes
 
 ## Safety Features
