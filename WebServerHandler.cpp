@@ -287,6 +287,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <div class="info-item"><span class="info-label">Reset Reason:</span> <span id="resetReason" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Temperatur:</span> <span id="temperature" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Radar Timeouts:</span> <span id="radarTimeouts" class="info-value">0</span></div>
+      <div class="info-item"><span class="info-label">Radar Restarts:</span> <span id="radarSerialRestarts" class="info-value">0</span></div>
       <div class="info-item"><span class="info-label">IP:</span> <span id="ip" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Uptime:</span> <span id="uptime" class="info-value">0 min</span></div>
       <div class="info-item"><span class="info-label">RSSI:</span> <span id="rssi" class="info-value">0 dBm</span></div>
@@ -480,6 +481,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       const temp = data.temp_c;
       document.getElementById('temperature').textContent = (typeof temp === 'number' ? temp.toFixed(1) + ' °C' : '-');
       document.getElementById('radarTimeouts').textContent = (data.radarTimeouts !== undefined ? data.radarTimeouts : 0);
+      document.getElementById('radarSerialRestarts').textContent = (data.radarSerialRestarts !== undefined ? data.radarSerialRestarts : 0);
       document.getElementById('ip').textContent = data.ip || '-';
       document.getElementById('targetCount').textContent = data.targetCount || 0;
       document.getElementById('maxRange').textContent = (data.range_m || 0).toFixed(1) + 'm';
@@ -572,6 +574,7 @@ void handleRadarAPI() {
   doc["resetReason"] = esp_reset_reason();
   doc["temp_c"] = temperatureRead();
   doc["radarTimeouts"] = radarTimeoutCount;
+  doc["radarSerialRestarts"] = radarSerialRestartCount;
   doc["range_m"] = g_maxRangeMeters;
   doc["uptime_min"] = millis() / 60000;
   doc["rssi"] = WiFi.RSSI();
