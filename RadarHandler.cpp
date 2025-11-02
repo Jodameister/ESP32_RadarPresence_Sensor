@@ -41,7 +41,15 @@ bool readSensorAck(uint16_t expectedCmd, uint32_t timeoutMs) {
       if (idx >= full) {
         uint16_t cmd = buf[6] | (buf[7] << 8);
         uint16_t st  = buf[8] | (buf[9] << 8);
-        return cmd == expectedCmd && st == 0;
+        if (cmd == expectedCmd) {
+          if (st != 0) {
+            Serial.printf("Radar ACK 0x%04X status=%u\n", cmd, st);
+          }
+          return st == 0;
+        }
+        // Unerwartetes ACK verwerfen und weiter warten
+        Serial.printf("Radar ACK unexpected cmd=0x%04X expecting 0x%04X\n", cmd, expectedCmd);
+        idx = 0;
       }
     }
     if (idx >= sizeof(buf)) idx = 0;
@@ -50,6 +58,10 @@ bool readSensorAck(uint16_t expectedCmd, uint32_t timeoutMs) {
 }
 
 void setMaxRadarRange(float m) {
+  while (Serial1.available()) {
+    Serial1.read();
+  }
+
   g_maxRangeMeters = m;
   uint8_t gate = min((uint8_t)ceil(m / RANGE_GATE_SIZE), (uint8_t)15);
 
@@ -89,6 +101,10 @@ void setMaxRadarRange(float m) {
 }
 
 void setHoldInterval(uint32_t ms) {
+  while (Serial1.available()) {
+    Serial1.read();
+  }
+
   g_holdIntervalMs = ms;
 
   static const uint8_t openCmd[] = {

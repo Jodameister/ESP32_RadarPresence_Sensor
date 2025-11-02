@@ -4,7 +4,7 @@
 #include "Config.h"
 
 void enableMultiTargetMode();
-bool readSensorAck(uint16_t expectedCmd, uint32_t timeoutMs = 200);
+bool readSensorAck(uint16_t expectedCmd, uint32_t timeoutMs = 500);
 void setMaxRadarRange(float meters);
 void setHoldInterval(uint32_t ms);
 void restartRadarSerial();
