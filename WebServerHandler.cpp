@@ -6,6 +6,7 @@
 #include "RadarHandler.h"
 #include "MQTTHandler.h"
 #include <ArduinoJson.h>
+#include <esp_system.h>
 
 WebServer webServer(80);
 
@@ -282,6 +283,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <!-- ESP Infos -->
     <div id="esp-info" class="card">
       <h3>ESP Infos</h3>
+      <div class="info-item"><span class="info-label">Firmware:</span> <span id="fwVersion" class="info-value">-</span></div>
+      <div class="info-item"><span class="info-label">Reset Reason:</span> <span id="resetReason" class="info-value">-</span></div>
+      <div class="info-item"><span class="info-label">Temperatur:</span> <span id="temperature" class="info-value">-</span></div>
+      <div class="info-item"><span class="info-label">Radar Timeouts:</span> <span id="radarTimeouts" class="info-value">0</span></div>
       <div class="info-item"><span class="info-label">IP:</span> <span id="ip" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Uptime:</span> <span id="uptime" class="info-value">0 min</span></div>
       <div class="info-item"><span class="info-label">RSSI:</span> <span id="rssi" class="info-value">0 dBm</span></div>
@@ -339,6 +344,29 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     const PIXELS_PER_METER = 50;
     const CENTER_X = 400;
     const CENTER_Y = 50;
+
+    const resetReasonMap = {
+      1: 'POWERON_RESET',
+      3: 'SW_RESET',
+      4: 'OWDT_RESET',
+      5: 'DEEPSLEEP_RESET',
+      6: 'SDIO_RESET',
+      7: 'TG0WDT_SYS_RESET',
+      8: 'TG1WDT_SYS_RESET',
+      9: 'RTCWDT_SYS_RESET',
+      10: 'INTRUSION_RESET',
+      11: 'TGWDT_CPU_RESET',
+      12: 'SW_CPU_RESET',
+      13: 'RTCWDT_CPU_RESET',
+      14: 'EXT_CPU_RESET',
+      15: 'RTCWDT_BROWN_OUT_RESET',
+      16: 'RTCWDT_RTC_RESET'
+    };
+
+    function formatResetReason(code) {
+      if (code === undefined || code === null) return '-';
+      return resetReasonMap[code] || ('Code ' + code);
+    }
 
     function sendCommand(cmd) {
       fetch('/api/cmd?cmd=' + cmd)
@@ -447,6 +475,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       drawRadar();
 
       // ESP Info aktualisieren
+      document.getElementById('fwVersion').textContent = data.fwVersion || '-';
+      document.getElementById('resetReason').textContent = formatResetReason(data.resetReason);
+      const temp = data.temp_c;
+      document.getElementById('temperature').textContent = (typeof temp === 'number' ? temp.toFixed(1) + ' °C' : '-');
+      document.getElementById('radarTimeouts').textContent = (data.radarTimeouts !== undefined ? data.radarTimeouts : 0);
       document.getElementById('ip').textContent = data.ip || '-';
       document.getElementById('targetCount').textContent = data.targetCount || 0;
       document.getElementById('maxRange').textContent = (data.range_m || 0).toFixed(1) + 'm';
@@ -535,6 +568,10 @@ void handleRadarAPI() {
   doc["targetCount"] = 0;
   for (auto &t: smoothed) if (t.presence) doc["targetCount"] = doc["targetCount"].as<int>() + 1;
 
+  doc["fwVersion"] = FW_VERSION;
+  doc["resetReason"] = esp_reset_reason();
+  doc["temp_c"] = temperatureRead();
+  doc["radarTimeouts"] = radarTimeoutCount;
   doc["range_m"] = g_maxRangeMeters;
   doc["uptime_min"] = millis() / 60000;
   doc["rssi"] = WiFi.RSSI();
