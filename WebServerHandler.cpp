@@ -177,7 +177,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       justify-content: flex-end;
       align-items: center;
       max-width: 1600px;
-      margin: 0 auto 16px;
+      margin: 0 auto 12px;
     }
 
     .theme-toggle-btn {
@@ -306,9 +306,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       background: var(--canvas-bg);
       border-radius: 12px;
       width: 100%;
-      height: 100%;
+      height: auto;
+      aspect-ratio: 4 / 3;
       border: 1px solid var(--canvas-border);
-      min-height: 420px;
     }
 
     /* Control Buttons */
@@ -448,10 +448,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       font-weight: 500;
     }
 
-    @media (max-width: 1024px) {
+    @media (max-width: 880px) {
       #theme-switcher {
         justify-content: center;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
       }
       #dashboard {
         grid-template-columns: 1fr;
@@ -470,6 +470,27 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
       #control-buttons {
         flex-direction: column;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 10px 14px;
+      }
+      #theme-switcher {
+        margin-bottom: 6px;
+      }
+      .theme-toggle-btn {
+        padding: 8px 16px;
+        font-size: 13px;
+      }
+      h1 {
+        font-size: 26px;
+        margin-bottom: 12px;
+      }
+      #status {
+        margin-bottom: 18px;
+        padding: 10px 16px;
       }
     }
   </style>
@@ -563,9 +584,19 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
     let configuredRange = 5; // Vom Sensor eingestellte Reichweite
     const MAX_RANGE = 8; // Maximale Radar-Reichweite
-    const PIXELS_PER_METER = 50;
-    const CENTER_X = 400;
-    const CENTER_Y = 30;
+    const BASE_CANVAS_WIDTH = 800;
+    const BASE_CANVAS_HEIGHT = 600;
+    const BASE_PIXELS_PER_METER = 50;
+    const BASE_CENTER_X = 400;
+    const BASE_CENTER_Y = 30;
+
+    let canvasWidth = BASE_CANVAS_WIDTH;
+    let canvasHeight = BASE_CANVAS_HEIGHT;
+    let pixelsPerMeter = BASE_PIXELS_PER_METER;
+    let centerX = BASE_CENTER_X;
+    let centerY = BASE_CENTER_Y;
+    let uiScale = 1;
+    let resizePending = false;
     let fallbackTimer = null;
     let eventSource = null;
     let invertXAxis = false;
@@ -680,6 +711,61 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
     }
 
+    function resizeCanvas() {
+      if (!canvas || !ctx) return false;
+      const rect = canvas.getBoundingClientRect();
+      let width = Math.max(1, Math.round(rect.width));
+      if (width < 10 && canvas.parentElement) {
+        width = Math.max(1, Math.round(canvas.parentElement.clientWidth));
+      }
+      if (width < 10) {
+        requestAnimationFrame(resizeCanvas);
+        return false;
+      }
+      const aspectRatio = BASE_CANVAS_HEIGHT / BASE_CANVAS_WIDTH;
+      const height = Math.round(width * aspectRatio);
+      canvas.style.height = height + 'px';
+
+      const pixelRatio = window.devicePixelRatio || 1;
+      const internalWidth = Math.max(1, Math.round(width * pixelRatio));
+      const internalHeight = Math.max(1, Math.round(height * pixelRatio));
+      if (canvas.width !== internalWidth || canvas.height !== internalHeight) {
+        canvas.width = internalWidth;
+        canvas.height = internalHeight;
+      }
+      ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+      canvasWidth = width;
+      canvasHeight = height;
+      uiScale = canvasWidth / BASE_CANVAS_WIDTH;
+      pixelsPerMeter = BASE_PIXELS_PER_METER * uiScale;
+      centerX = BASE_CENTER_X * uiScale;
+      centerY = BASE_CENTER_Y * uiScale;
+      return true;
+    }
+
+    function redrawRadar() {
+      if (lastRadarPayload) {
+        updateRadar(lastRadarPayload);
+      } else {
+        drawRadar();
+      }
+    }
+
+    function scheduleCanvasRefresh() {
+      if (resizePending) return;
+      resizePending = true;
+      const attemptRefresh = () => {
+        if (resizeCanvas()) {
+          resizePending = false;
+          redrawRadar();
+        } else {
+          requestAnimationFrame(attemptRefresh);
+        }
+      };
+      requestAnimationFrame(attemptRefresh);
+    }
+
     function formatUptimeLabel(minutes, formatted) {
       if (formatted && typeof formatted === 'string') {
         return formatted;
@@ -764,79 +850,85 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       const labelColor = varFallback(styles.getPropertyValue('--canvas-label-color'), '#6a7a8a');
 
       ctx.fillStyle = varFallback(styles.getPropertyValue('--canvas-fill'), '#1a1a2a');
-      ctx.fillRect(0, 0, 800, 600);
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-      const maxRadius = MAX_RANGE * PIXELS_PER_METER;
-      const configuredRadius = configuredRange * PIXELS_PER_METER;
+      const maxRadius = MAX_RANGE * pixelsPerMeter;
+      const configuredRadius = configuredRange * pixelsPerMeter;
+      const thinLineWidth = Math.max(1, uiScale);
+      const highlightLineWidth = Math.max(1.5, 3 * uiScale);
+      const labelFontSize = Math.max(10, Math.min(18, 12 * uiScale));
+      const labelOffset = 25 * uiScale;
 
       // Radial lines (nach Süden: Halbkreis nach unten, -90° bis +90°)
       ctx.strokeStyle = gridColor;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = thinLineWidth;
       for(let angle = -90; angle <= 90; angle += 15) {
         const rad = (angle + 90) * Math.PI / 180;
-        const x = CENTER_X + Math.cos(rad) * maxRadius;
-        const y = CENTER_Y + Math.sin(rad) * maxRadius;
+        const x = centerX + Math.cos(rad) * maxRadius;
+        const y = centerY + Math.sin(rad) * maxRadius;
         ctx.beginPath();
-        ctx.moveTo(CENTER_X, CENTER_Y);
+        ctx.moveTo(centerX, centerY);
         ctx.lineTo(x, y);
         ctx.stroke();
       }
 
       // Concentric arcs für alle 15 Meter
       ctx.strokeStyle = arcColor;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = thinLineWidth;
       for(let m = 1; m <= MAX_RANGE; m++) {
-        const r = m * PIXELS_PER_METER;
+        const r = m * pixelsPerMeter;
         ctx.beginPath();
-        ctx.arc(CENTER_X, CENTER_Y, r, 0, Math.PI, false);
+        ctx.arc(centerX, centerY, r, 0, Math.PI, false);
         ctx.stroke();
       }
 
       // Range labels für alle Meter
       ctx.fillStyle = labelColor;
-      ctx.font = '12px monospace';
+      ctx.font = labelFontSize.toFixed(1) + 'px monospace';
       ctx.textAlign = 'center';
       for(let m = 1; m <= MAX_RANGE; m++) {
-        const y = CENTER_Y + m * PIXELS_PER_METER;
-        ctx.fillText(m + 'm', CENTER_X + 25, y + 4);
+        const y = centerY + m * pixelsPerMeter;
+        ctx.fillText(m + 'm', centerX + labelOffset, y + labelFontSize * 0.3);
       }
 
       // Gesamte Detection area (15m) - dezent
-      const gradientMax = ctx.createRadialGradient(CENTER_X, CENTER_Y, 0, CENTER_X, CENTER_Y, maxRadius);
+      const gradientMax = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius);
       gradientMax.addColorStop(0, 'rgba(70, 130, 180, 0.05)');
       gradientMax.addColorStop(1, 'rgba(70, 130, 180, 0.02)');
       ctx.fillStyle = gradientMax;
       ctx.beginPath();
-      ctx.arc(CENTER_X, CENTER_Y, maxRadius, 0, Math.PI, false);
-      ctx.lineTo(CENTER_X, CENTER_Y);
+      ctx.arc(centerX, centerY, maxRadius, 0, Math.PI, false);
+      ctx.lineTo(centerX, centerY);
       ctx.closePath();
       ctx.fill();
 
       // Konfigurierte Reichweite - FARBIG hervorgehoben
-      const gradientConfigured = ctx.createRadialGradient(CENTER_X, CENTER_Y, 0, CENTER_X, CENTER_Y, configuredRadius);
+      const gradientConfigured = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, configuredRadius);
       gradientConfigured.addColorStop(0, 'rgba(52, 199, 89, 0.25)');
       gradientConfigured.addColorStop(1, 'rgba(52, 199, 89, 0.1)');
       ctx.fillStyle = gradientConfigured;
       ctx.beginPath();
-      ctx.arc(CENTER_X, CENTER_Y, configuredRadius, 0, Math.PI, false);
-      ctx.lineTo(CENTER_X, CENTER_Y);
+      ctx.arc(centerX, centerY, configuredRadius, 0, Math.PI, false);
+      ctx.lineTo(centerX, centerY);
       ctx.closePath();
       ctx.fill();
 
       // Markierung der konfigurierten Reichweite mit farbigem Bogen
       ctx.strokeStyle = '#34c759';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = highlightLineWidth;
       ctx.beginPath();
-      ctx.arc(CENTER_X, CENTER_Y, configuredRadius, 0, Math.PI, false);
+      ctx.arc(centerX, centerY, configuredRadius, 0, Math.PI, false);
       ctx.stroke();
 
       // Sensor position (oben/Norden)
+      const sensorRadius = Math.max(4, 8 * uiScale);
       ctx.fillStyle = '#ff4444';
       ctx.beginPath();
-      ctx.arc(CENTER_X, CENTER_Y, 8, 0, Math.PI * 2);
+      ctx.arc(centerX, centerY, sensorRadius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = Math.max(1, 2 * uiScale);
       ctx.stroke();
     }
 
@@ -900,39 +992,55 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         `;
 
         // 180° gedreht: Y jetzt nach unten positiv
-        const screenX = CENTER_X + xMeters * PIXELS_PER_METER;
-        const screenY = CENTER_Y + yMeters * PIXELS_PER_METER;
+        const screenX = centerX + xMeters * pixelsPerMeter;
+        const screenY = centerY + yMeters * pixelsPerMeter;
 
         // Target glow
-        const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, 15);
+        const glowRadius = Math.max(10, 15 * uiScale);
+        const coreRadius = Math.max(3, 5 * uiScale);
+        const labelFontSize = Math.max(11, Math.min(22, 12 * uiScale));
+        const labelOffsetY = 20 * uiScale;
+        const outlineWidth = Math.max(2, 3 * uiScale);
+        const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, glowRadius);
         gradient.addColorStop(0, 'rgba(255, 100, 100, 0.8)');
         gradient.addColorStop(1, 'rgba(255, 100, 100, 0)');
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.arc(screenX, screenY, 15, 0, Math.PI * 2);
+        ctx.arc(screenX, screenY, glowRadius, 0, Math.PI * 2);
         ctx.fill();
 
         // Target core
         ctx.fillStyle = '#ff6464';
         ctx.beginPath();
-        ctx.arc(screenX, screenY, 5, 0, Math.PI * 2);
+        ctx.arc(screenX, screenY, coreRadius, 0, Math.PI * 2);
         ctx.fill();
 
         // Label
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 12px monospace';
+        ctx.font = 'bold ' + labelFontSize.toFixed(1) + 'px monospace';
         ctx.textAlign = 'center';
         ctx.strokeStyle = '#000';
-        ctx.lineWidth = 3;
-        ctx.strokeText('T' + i, screenX, screenY - 20);
-        ctx.fillText('T' + i, screenX, screenY - 20);
+        ctx.lineWidth = outlineWidth;
+        ctx.strokeText('T' + i, screenX, screenY - labelOffsetY);
+        ctx.fillText('T' + i, screenX, screenY - labelOffsetY);
       }
     }
 
     initTheme();
     initInvertToggle();
-    drawRadar();
+    const initialCanvasReady = resizeCanvas();
+    if (initialCanvasReady) {
+      redrawRadar();
+    }
     setupRealtime();
+
+    if (!initialCanvasReady) {
+      scheduleCanvasRefresh();
+    }
+
+    window.addEventListener('resize', () => {
+      scheduleCanvasRefresh();
+    });
   </script>
 </body>
 </html>
