@@ -61,6 +61,7 @@ struct RadarTarget {
 extern uint8_t           radarBuf[64];
 extern uint8_t           radarCount;
 extern bool              otaInProgress, startConfigPortal, rebootRequested, serialResetAttempted;
+extern unsigned long     rebootRequestedAt;
 extern unsigned long     serialResetTime;
 extern uint32_t          wifiReconnectCount, radarTimeoutCount, radarSerialRestartCount;
 extern bool              wifiReconnectIssued;

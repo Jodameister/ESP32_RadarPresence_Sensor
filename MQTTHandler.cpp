@@ -91,6 +91,7 @@ void processMqttCommand(const String& cmd) {
   else if (cmd == "reboot") {
     safePublish(ackTopic, "reboot OK");
     rebootRequested = true;
+    rebootRequestedAt = millis();
   }
   else if (cmd == "resetRadar") {
     restartRadarSerial();

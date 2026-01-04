@@ -46,6 +46,7 @@ bool           otaInProgress        = false;
 bool           startConfigPortal   = false;
 bool           rebootRequested     = false;
 bool           serialResetAttempted = false;
+unsigned long  rebootRequestedAt    = 0;
 unsigned long  serialResetTime      = 0;
 uint32_t       wifiReconnectCount   = 0;
 uint32_t       radarTimeoutCount    = 0;

@@ -100,11 +100,17 @@ void logApInfo(const char* prefix) {
   wifi_ap_record_t apInfo;
   if (esp_wifi_sta_get_ap_info(&apInfo) == ESP_OK) {
     char bssid[18];
+    char prevBssid[18];
+    strncpy(prevBssid, g_lastBssid, sizeof(prevBssid) - 1);
+    prevBssid[sizeof(prevBssid) - 1] = '\0';
     snprintf(bssid, sizeof(bssid), "%02X:%02X:%02X:%02X:%02X:%02X",
              apInfo.bssid[0], apInfo.bssid[1], apInfo.bssid[2],
              apInfo.bssid[3], apInfo.bssid[4], apInfo.bssid[5]);
     strncpy(g_lastBssid, bssid, sizeof(g_lastBssid) - 1);
     g_lastBssid[sizeof(g_lastBssid) - 1] = '\0';
+    if (prevBssid[0] != '\0' && strcmp(prevBssid, bssid) != 0) {
+      logPrintf("AP-Wechsel: %s -> %s\n", prevBssid, bssid);
+    }
     logPrintf("%s BSSID %s, CH %d, RSSI %d, AUTH %s\n",
                   prefix,
                   bssid,
@@ -454,7 +460,15 @@ void handleMqttCommands() {
     }
   }
   if (rebootRequested) {
-    rebootRequested = false;
-    ESP.restart();
+    const unsigned long REBOOT_DELAY_MS = 1000;
+    if (rebootRequestedAt == 0) {
+      rebootRequestedAt = millis();
+    }
+    if (millis() - rebootRequestedAt >= REBOOT_DELAY_MS) {
+      logPrintln("Reboot ausgefuehrt");
+      rebootRequested = false;
+      rebootRequestedAt = 0;
+      ESP.restart();
+    }
   }
 }
