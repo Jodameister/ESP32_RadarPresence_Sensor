@@ -119,6 +119,7 @@ void mqttReconnect() {
   static unsigned long lastAttempt = 0;
   const unsigned long RECONNECT_INTERVAL = 5000; // 5 Sekunden zwischen Versuchen
 
+  if (WiFi.status() != WL_CONNECTED) return;
   if (mqttClient.connected()) return;
 
   unsigned long now = millis();

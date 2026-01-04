@@ -43,11 +43,78 @@ void setupWiFiManagerParams(WiFiManager& wm);
 void handleMqttCommands();
 void maintainWiFi();
 bool syncConfigFromWiFiManager();
+const char* wifiDisconnectReason(uint8_t reason);
+const char* wifiAuthModeName(wifi_auth_mode_t auth);
+void logApInfo(const char* prefix);
+unsigned long lastWiFiConnectEvent = 0;
+
+const char* wifiDisconnectReason(uint8_t reason) {
+  switch (reason) {
+    case WIFI_REASON_UNSPECIFIED: return "UNSPECIFIED";
+    case WIFI_REASON_AUTH_EXPIRE: return "AUTH_EXPIRE";
+    case WIFI_REASON_AUTH_LEAVE: return "AUTH_LEAVE";
+    case WIFI_REASON_ASSOC_EXPIRE: return "ASSOC_EXPIRE";
+    case WIFI_REASON_ASSOC_TOOMANY: return "ASSOC_TOOMANY";
+    case WIFI_REASON_NOT_AUTHED: return "NOT_AUTHED";
+    case WIFI_REASON_NOT_ASSOCED: return "NOT_ASSOCED";
+    case WIFI_REASON_ASSOC_LEAVE: return "ASSOC_LEAVE";
+    case WIFI_REASON_ASSOC_NOT_AUTHED: return "ASSOC_NOT_AUTHED";
+    case WIFI_REASON_DISASSOC_PWRCAP_BAD: return "DISASSOC_PWRCAP_BAD";
+    case WIFI_REASON_DISASSOC_SUPCHAN_BAD: return "DISASSOC_SUPCHAN_BAD";
+    case WIFI_REASON_IE_INVALID: return "IE_INVALID";
+    case WIFI_REASON_MIC_FAILURE: return "MIC_FAILURE";
+    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT: return "4WAY_HANDSHAKE_TIMEOUT";
+    case WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT: return "GROUP_KEY_UPDATE_TIMEOUT";
+    case WIFI_REASON_IE_IN_4WAY_DIFFERS: return "IE_IN_4WAY_DIFFERS";
+    case WIFI_REASON_GROUP_CIPHER_INVALID: return "GROUP_CIPHER_INVALID";
+    case WIFI_REASON_PAIRWISE_CIPHER_INVALID: return "PAIRWISE_CIPHER_INVALID";
+    case WIFI_REASON_AKMP_INVALID: return "AKMP_INVALID";
+    case WIFI_REASON_UNSUPP_RSN_IE_VERSION: return "UNSUPP_RSN_IE_VERSION";
+    case WIFI_REASON_INVALID_RSN_IE_CAP: return "INVALID_RSN_IE_CAP";
+    case WIFI_REASON_802_1X_AUTH_FAILED: return "802_1X_AUTH_FAILED";
+    case WIFI_REASON_CIPHER_SUITE_REJECTED: return "CIPHER_SUITE_REJECTED";
+    case WIFI_REASON_BEACON_TIMEOUT: return "BEACON_TIMEOUT";
+    case WIFI_REASON_NO_AP_FOUND: return "NO_AP_FOUND";
+    case WIFI_REASON_AUTH_FAIL: return "AUTH_FAIL";
+    case WIFI_REASON_ASSOC_FAIL: return "ASSOC_FAIL";
+    case WIFI_REASON_HANDSHAKE_TIMEOUT: return "HANDSHAKE_TIMEOUT";
+    default: return "UNKNOWN";
+  }
+}
+
+const char* wifiAuthModeName(wifi_auth_mode_t auth) {
+  switch (auth) {
+    case WIFI_AUTH_OPEN: return "OPEN";
+    case WIFI_AUTH_WEP: return "WEP";
+    case WIFI_AUTH_WPA_PSK: return "WPA_PSK";
+    case WIFI_AUTH_WPA2_PSK: return "WPA2_PSK";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "WPA_WPA2_PSK";
+    case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2_ENTERPRISE";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3_PSK";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2_WPA3_PSK";
+    case WIFI_AUTH_WAPI_PSK: return "WAPI_PSK";
+    default: return "UNKNOWN";
+  }
+}
+
+void logApInfo(const char* prefix) {
+  wifi_ap_record_t apInfo;
+  if (esp_wifi_sta_get_ap_info(&apInfo) == ESP_OK) {
+    Serial.printf("%s BSSID %02x:%02x:%02x:%02x:%02x:%02x, CH %d, RSSI %d, AUTH %s\n",
+                  prefix,
+                  apInfo.bssid[0], apInfo.bssid[1], apInfo.bssid[2],
+                  apInfo.bssid[3], apInfo.bssid[4], apInfo.bssid[5],
+                  apInfo.primary, apInfo.rssi, wifiAuthModeName(apInfo.authmode));
+  } else {
+    Serial.printf("%s AP-Info nicht verfügbar\n", prefix);
+  }
+}
 
 void maintainWiFi() {
   if (configPortalActive) return;
   static const unsigned long WIFI_RECONNECT_INTERVAL = 15000UL;
   static const unsigned long WIFI_MAX_OUTAGE = 300000UL; // 5 minutes
+  static const unsigned long WIFI_CONNECT_GRACE = 10000UL; // 10 seconds
   unsigned long now = millis();
 
   if (WiFi.status() == WL_CONNECTED) {
@@ -55,8 +122,13 @@ void maintainWiFi() {
     return;
   }
 
+  if (lastWiFiConnectEvent != 0 && (now - lastWiFiConnectEvent) < WIFI_CONNECT_GRACE) {
+    return;
+  }
+
   if (!wifiReconnectIssued || (now - lastWiFiReconnectAttempt) > WIFI_RECONNECT_INTERVAL) {
     Serial.println("WiFi offline → attempting reconnect");
+    Serial.printf("WiFi reconnect SSID: %s\n", WiFi.SSID().c_str());
     wifiReconnectIssued = true;
     lastWiFiReconnectAttempt = now;
     WiFi.reconnect();
@@ -155,12 +227,21 @@ void setup() {
         case ARDUINO_EVENT_WIFI_STA_CONNECTED:
           Serial.printf("WiFi event: CONNECTED to %s\n",
                         reinterpret_cast<const char*>(info.wifi_sta_connected.ssid));
+          logApInfo("WiFi AP");
+          lastWiFiConnectEvent = millis();
           wifiReconnectIssued = false;
           lastWiFiReconnectAttempt = 0;
           break;
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
           Serial.printf("WiFi event: GOT_IP %s\n", WiFi.localIP().toString().c_str());
+          Serial.printf("WiFi IP-Info: GW %s, MASK %s, DNS1 %s, DNS2 %s\n",
+                        WiFi.gatewayIP().toString().c_str(),
+                        WiFi.subnetMask().toString().c_str(),
+                        WiFi.dnsIP(0).toString().c_str(),
+                        WiFi.dnsIP(1).toString().c_str());
+          logApInfo("WiFi AP");
           lastWiFiConnected = millis();
+          lastWiFiConnectEvent = 0;
           wifiReconnectIssued = false;
           lastWiFiReconnectAttempt = 0;
           break;
@@ -168,12 +249,18 @@ void setup() {
           Serial.println("WiFi event: LOST_IP");
           break;
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-          Serial.printf("WiFi event: DISCONNECTED (reason=%d)\n",
-                        info.wifi_sta_disconnected.reason);
+          Serial.printf("WiFi event: DISCONNECTED (reason=%d %s)\n",
+                        info.wifi_sta_disconnected.reason,
+                        wifiDisconnectReason(info.wifi_sta_disconnected.reason));
+          Serial.printf("WiFi SSID: %s\n", WiFi.SSID().c_str());
+          Serial.printf("WiFi status: %d, seit letzter Verbindung %lu ms, letzter Reconnect %lu ms\n",
+                        WiFi.status(),
+                        millis() - lastWiFiConnected,
+                        millis() - lastWiFiReconnectAttempt);
+          logApInfo("WiFi last AP");
           wifiReconnectCount++;
           wifiReconnectIssued = true;
           lastWiFiReconnectAttempt = millis();
-          WiFi.reconnect();
           break;
         default:
           Serial.printf("WiFi event: %d\n", evt);
@@ -263,25 +350,32 @@ void loop() {
   handleWebServer();
 
   // MQTT
-  if (!mqttClient.connected()) mqttReconnect();
-  mqttClient.loop();
+  bool wifiConnected = (WiFi.status() == WL_CONNECTED);
+  if (wifiConnected) {
+    if (!mqttClient.connected()) mqttReconnect();
+    mqttClient.loop();
+  }
 
   // Radar data
   readRadarData();
 
   // Publishing
   unsigned long now = millis();
-  if (now - lastRadarPub >= RADAR_INTERVAL_MS) {
-    lastRadarPub = now;
-    publishRadarJson();
-  }
-  if (now - lastStatusPub >= STATUS_INTERVAL) {
-    lastStatusPub = now;
-    publishStatus();
+  if (wifiConnected) {
+    if (now - lastRadarPub >= RADAR_INTERVAL_MS) {
+      lastRadarPub = now;
+      publishRadarJson();
+    }
+    if (now - lastStatusPub >= STATUS_INTERVAL) {
+      lastStatusPub = now;
+      publishStatus();
+    }
   }
 
   // Command handling
-  handleMqttCommands();
+  if (wifiConnected) {
+    handleMqttCommands();
+  }
   checkRadarConnection();
 
   delay(1);

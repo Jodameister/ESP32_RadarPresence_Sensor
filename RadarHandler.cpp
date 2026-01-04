@@ -48,6 +48,11 @@ bool readSensorAck(uint16_t expectedCmd, uint32_t timeoutMs) {
           }
           return st == 0;
         }
+        // Open/Close-ACKs können vor dem erwarteten SET kommen → still ignorieren
+        if (cmdRaw == 0x01FF || cmdRaw == 0x01FE) {
+          idx = 0;
+          continue;
+        }
         // Unerwartetes ACK verwerfen und weiter warten
         Serial.printf("Radar ACK unexpected cmd=0x%04X expecting 0x%04X\n", cmdRaw, expectedCmd);
         idx = 0;
@@ -329,6 +334,7 @@ void readRadarData() {
 }
 
 void publishRadarJson() {
+  if (!mqttClient.connected()) return;
   StaticJsonDocument<512> doc;
   int cnt = 0;
   for (auto &t: smoothed) if (t.presence) cnt++;
@@ -365,6 +371,7 @@ void publishRadarJson() {
 }
 
 void publishStatus() {
+  if (!mqttClient.connected()) return;
   StaticJsonDocument<512> doc;
   doc["fwVersion"]      = FW_VERSION;
   doc["uptime_min"]     = millis()/60000;
