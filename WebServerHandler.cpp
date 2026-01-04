@@ -447,6 +447,28 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       font-size: 14px;
       font-weight: 500;
     }
+    .log-title {
+      margin: 16px 0 8px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted-text);
+    }
+    #logList {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .log-item {
+      background: rgba(0, 0, 0, 0.08);
+      border-left: 3px solid rgba(100, 210, 255, 0.6);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      font-family: monospace;
+      word-break: break-word;
+    }
 
     @media (max-width: 880px) {
       #theme-switcher {
@@ -511,6 +533,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <div class="info-item"><span class="info-label">Temperatur:</span> <span id="temperature" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Radar Restarts:</span> <span id="radarSerialRestarts" class="info-value">0</span></div>
       <div class="info-item"><span class="info-label">IP:</span> <span id="ip" class="info-value">-</span></div>
+      <div class="info-item"><span class="info-label">BSSID:</span> <span id="bssid" class="info-value">-</span></div>
+      <div class="info-item"><span class="info-label">Access Point:</span> <span id="apName" class="info-value">-</span></div>
       <div class="info-item"><span class="info-label">Uptime:</span> <span id="uptime" class="info-value">000:00</span></div>
       <div class="info-item"><span class="info-label">RSSI:</span> <span id="rssi" class="info-value">0 dBm</span></div>
       <div class="info-item"><span class="info-label">Heap:</span> <span id="heap" class="info-value">0 KB</span></div>
@@ -553,6 +577,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <div id="warnings" class="card">
       <h3>⚠️ Warnings</h3>
       <div id="warningList"></div>
+      <div class="log-title">Letzte Logs</div>
+      <div id="logList"></div>
     </div>
   </div>
 
@@ -624,6 +650,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       if (code === undefined || code === null) return '-';
       if (typeof code === 'string') return code;
       return resetReasonMap[code] || ('code ' + code);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
     function applyTheme(mode) {
@@ -946,6 +981,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       document.getElementById('temperature').textContent = (typeof temp === 'number' ? temp.toFixed(1) + ' °C' : '-');
       document.getElementById('radarSerialRestarts').textContent = (data.radarSerialRestarts !== undefined ? data.radarSerialRestarts : 0);
       document.getElementById('ip').textContent = data.ip || '-';
+      document.getElementById('bssid').textContent = data.bssid || '-';
+      document.getElementById('apName').textContent = data.apName || '-';
       document.getElementById('targetCount').textContent = data.targetCount || 0;
       document.getElementById('maxRange').textContent = (configuredRange || 0).toFixed(1) + 'm';
       document.getElementById('uptime').textContent = formatUptimeLabel(data.uptime_min, data.uptime);
@@ -961,6 +998,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         warningList.innerHTML = data.warnings.map(w => '<div class="warning-item">⚠️ ' + w + '</div>').join('');
       } else {
         warningList.innerHTML = '<div style="color: var(--muted-text); font-size: 13px;">Keine Warnungen</div>';
+      }
+
+      const logList = document.getElementById('logList');
+      if (data.serialLogs && data.serialLogs.length > 0) {
+        logList.innerHTML = data.serialLogs.map(l => '<div class="log-item">' + escapeHtml(l) + '</div>').join('');
+      } else {
+        logList.innerHTML = '<div style="color: var(--muted-text); font-size: 12px;">Keine Logs</div>';
       }
 
       // Targets zeichnen und Boxen aktualisieren
@@ -1065,6 +1109,30 @@ static size_t buildRadarJson(char* buffer, size_t bufsize) {
   doc["ip"] = WiFi.localIP().toString();
   doc["heap_free"] = ESP.getFreeHeap();
   doc["holdMs"] = g_holdIntervalMs;
+  char bssidBuf[18];
+  bssidBuf[0] = '\0';
+  if (WiFi.status() == WL_CONNECTED && WiFi.BSSID() != nullptr) {
+    uint8_t bssidRaw[6];
+    memcpy(bssidRaw, WiFi.BSSID(), sizeof(bssidRaw));
+    snprintf(bssidBuf, sizeof(bssidBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
+             bssidRaw[0], bssidRaw[1], bssidRaw[2],
+             bssidRaw[3], bssidRaw[4], bssidRaw[5]);
+    strncpy(g_lastBssid, bssidBuf, sizeof(g_lastBssid) - 1);
+    g_lastBssid[sizeof(g_lastBssid) - 1] = '\0';
+  } else if (g_lastBssid[0] != '\0') {
+    strncpy(bssidBuf, g_lastBssid, sizeof(bssidBuf) - 1);
+    bssidBuf[sizeof(bssidBuf) - 1] = '\0';
+  }
+  doc["bssid"] = (bssidBuf[0] != '\0') ? bssidBuf : "-";
+  const char* apName = "-";
+  if (strcmp(bssidBuf, "A8:42:A1:5F:78:98") == 0) {
+    apName = "AP-Flur";
+  } else if (strcmp(bssidBuf, "A8:42:A1:5F:78:AE") == 0) {
+    apName = "AP-Wohnzimmer";
+  } else if (strcmp(bssidBuf, "A8:42:A1:5F:78:CE") == 0) {
+    apName = "AP-Kueche";
+  }
+  doc["apName"] = apName;
 
   JsonArray warnings = doc.createNestedArray("warnings");
   if (WiFi.RSSI() < -80) {
@@ -1078,6 +1146,16 @@ static size_t buildRadarJson(char* buffer, size_t bufsize) {
   }
   if (millis() - lastRadarDataTime > NO_DATA_TIMEOUT) {
     warnings.add("Keine Radar-Daten");
+  }
+
+  JsonArray serialLogs = doc.createNestedArray("serialLogs");
+  uint8_t logCount = getSerialLogCount();
+  for (uint8_t i = 0; i < logCount; i++) {
+    char line[SERIAL_LOG_LINE_LEN];
+    getSerialLogLine(i, line, sizeof(line));
+    if (line[0] != '\0') {
+      serialLogs.add(line);
+    }
   }
 
   for (int i = 0; i < 3; i++) {
@@ -1192,7 +1270,7 @@ void setupWebServer() {
   if (!serverRunning) {
     webServer.begin();
     serverRunning = true;
-    Serial.println("WebServer started on port 80");
+    logPrintln("WebServer started on port 80");
   }
 }
 
@@ -1206,7 +1284,7 @@ void stopWebServer() {
   }
   webServer.stop();
   serverRunning = false;
-  Serial.println("WebServer stopped");
+  logPrintln("WebServer stopped");
 }
 
 void handleWebServer() {

@@ -3,6 +3,7 @@
 #include "Config.h"
 #include <WiFiManager.h>    // für setupWiFiManager()
 #include <Preferences.h>    // für prefs
+#include <stdarg.h>
 
 // Preferences & network clients
 Preferences  prefs;
@@ -64,10 +65,91 @@ const uint8_t  multiTargetCmd[12] = {
 RadarTarget    smoothed[3];
 unsigned long  lastSeenTime[3] = {0,0,0};
 unsigned long  lastZeroPub = 0;
+char           g_lastBssid[18] = "";
+
+static char serialLogLines[SERIAL_LOG_LINES][SERIAL_LOG_LINE_LEN];
+static uint8_t serialLogIndex = 0;
+static uint8_t serialLogCount = 0;
+static char serialLogCurrent[SERIAL_LOG_LINE_LEN];
+static uint8_t serialLogCurrentLen = 0;
 
 //---------------------------------------------------------
 // Helper Functions
 //---------------------------------------------------------
+static void serialLogPush(const char* line) {
+  if (!line) return;
+  strncpy(serialLogLines[serialLogIndex], line, SERIAL_LOG_LINE_LEN - 1);
+  serialLogLines[serialLogIndex][SERIAL_LOG_LINE_LEN - 1] = '\0';
+  serialLogIndex = (serialLogIndex + 1) % SERIAL_LOG_LINES;
+  if (serialLogCount < SERIAL_LOG_LINES) serialLogCount++;
+}
+
+static void serialLogAppend(const char* text) {
+  if (!text) return;
+  for (const char* p = text; *p; p++) {
+    if (*p == '\n') {
+      serialLogCurrent[serialLogCurrentLen] = '\0';
+      serialLogPush(serialLogCurrent);
+      serialLogCurrentLen = 0;
+      continue;
+    }
+    if (serialLogCurrentLen >= SERIAL_LOG_LINE_LEN - 1) {
+      serialLogCurrent[serialLogCurrentLen] = '\0';
+      serialLogPush(serialLogCurrent);
+      serialLogCurrentLen = 0;
+    }
+    serialLogCurrent[serialLogCurrentLen++] = *p;
+  }
+}
+
+void logPrint(const char* msg) {
+  Serial.print(msg);
+  serialLogAppend(msg);
+}
+
+void logPrintln(const char* msg) {
+  Serial.println(msg);
+  serialLogAppend(msg);
+  serialLogAppend("\n");
+}
+
+void logPrint(const String& msg) {
+  Serial.print(msg);
+  serialLogAppend(msg.c_str());
+}
+
+void logPrintln(const String& msg) {
+  Serial.println(msg);
+  serialLogAppend(msg.c_str());
+  serialLogAppend("\n");
+}
+
+void logPrintf(const char* fmt, ...) {
+  char buf[160];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, args);
+  va_end(args);
+  Serial.printf("%s", buf);
+  serialLogAppend(buf);
+}
+
+uint8_t getSerialLogCount() {
+  return serialLogCount;
+}
+
+void getSerialLogLine(uint8_t idx, char* buffer, size_t bufsize) {
+  if (!buffer || bufsize == 0) return;
+  if (idx >= serialLogCount) {
+    buffer[0] = '\0';
+    return;
+  }
+  uint8_t start = (serialLogIndex + SERIAL_LOG_LINES - serialLogCount) % SERIAL_LOG_LINES;
+  uint8_t pos = (start + idx) % SERIAL_LOG_LINES;
+  strncpy(buffer, serialLogLines[pos], bufsize - 1);
+  buffer[bufsize - 1] = '\0';
+}
+
 char* buildMqttTopic(const char* suffix, char* buffer, size_t bufsize) {
   snprintf(buffer, bufsize, "%s/%s", g_mqttTopic.c_str(), suffix);
   return buffer;

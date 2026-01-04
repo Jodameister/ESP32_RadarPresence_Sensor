@@ -100,13 +100,18 @@ const char* wifiAuthModeName(wifi_auth_mode_t auth) {
 void logApInfo(const char* prefix) {
   wifi_ap_record_t apInfo;
   if (esp_wifi_sta_get_ap_info(&apInfo) == ESP_OK) {
-    Serial.printf("%s BSSID %02x:%02x:%02x:%02x:%02x:%02x, CH %d, RSSI %d, AUTH %s\n",
+    char bssid[18];
+    snprintf(bssid, sizeof(bssid), "%02X:%02X:%02X:%02X:%02X:%02X",
+             apInfo.bssid[0], apInfo.bssid[1], apInfo.bssid[2],
+             apInfo.bssid[3], apInfo.bssid[4], apInfo.bssid[5]);
+    strncpy(g_lastBssid, bssid, sizeof(g_lastBssid) - 1);
+    g_lastBssid[sizeof(g_lastBssid) - 1] = '\0';
+    logPrintf("%s BSSID %s, CH %d, RSSI %d, AUTH %s\n",
                   prefix,
-                  apInfo.bssid[0], apInfo.bssid[1], apInfo.bssid[2],
-                  apInfo.bssid[3], apInfo.bssid[4], apInfo.bssid[5],
+                  bssid,
                   apInfo.primary, apInfo.rssi, wifiAuthModeName(apInfo.authmode));
   } else {
-    Serial.printf("%s AP-Info nicht verfügbar\n", prefix);
+    logPrintf("%s AP-Info nicht verfügbar\n", prefix);
   }
 }
 
@@ -127,15 +132,15 @@ void maintainWiFi() {
   }
 
   if (!wifiReconnectIssued || (now - lastWiFiReconnectAttempt) > WIFI_RECONNECT_INTERVAL) {
-    Serial.println("WiFi offline → attempting reconnect");
-    Serial.printf("WiFi reconnect SSID: %s\n", WiFi.SSID().c_str());
+    logPrintln("WiFi offline → attempting reconnect");
+    logPrintf("WiFi reconnect SSID: %s\n", WiFi.SSID().c_str());
     wifiReconnectIssued = true;
     lastWiFiReconnectAttempt = now;
     WiFi.reconnect();
   }
 
   if (now - lastWiFiConnected > WIFI_MAX_OUTAGE) {
-    Serial.println("WiFi offline for more than 5 minutes → restarting ESP");
+    logPrintln("WiFi offline for more than 5 minutes → restarting ESP");
     ESP.restart();
   }
 }
@@ -179,7 +184,7 @@ bool syncConfigFromWiFiManager() {
     WiFi.setHostname(g_host.c_str());
     ArduinoOTA.setHostname(g_host.c_str());
     ArduinoOTA.setPassword(g_otaPass.c_str());
-    Serial.println("Konfiguration aus Portal übernommen");
+    logPrintln("Konfiguration aus Portal übernommen");
   }
   return changed;
 }
@@ -206,7 +211,7 @@ void setup() {
   WiFiManager wm;
   configureWiFiManager(wm);
   bool ok = wm.autoConnect("AutoConnectAP","12345678");
-  Serial.println(ok ? "WiFi verbunden" : "WiFiManager Timeout");
+  logPrintln(ok ? "WiFi verbunden" : "WiFiManager Timeout");
   if (ok) WiFi.setTxPower(WIFI_POWER_19_5dBm);
 
   WiFi.persistent(true);
@@ -222,10 +227,10 @@ void setup() {
     [](arduino_event_id_t evt, WiFiEventInfo_t info){
       switch (evt) {
         case ARDUINO_EVENT_WIFI_STA_START:
-          Serial.println("WiFi event: STA_START");
+          logPrintln("WiFi event: STA_START");
           break;
         case ARDUINO_EVENT_WIFI_STA_CONNECTED:
-          Serial.printf("WiFi event: CONNECTED to %s\n",
+          logPrintf("WiFi event: CONNECTED to %s\n",
                         reinterpret_cast<const char*>(info.wifi_sta_connected.ssid));
           logApInfo("WiFi AP");
           lastWiFiConnectEvent = millis();
@@ -233,8 +238,8 @@ void setup() {
           lastWiFiReconnectAttempt = 0;
           break;
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-          Serial.printf("WiFi event: GOT_IP %s\n", WiFi.localIP().toString().c_str());
-          Serial.printf("WiFi IP-Info: GW %s, MASK %s, DNS1 %s, DNS2 %s\n",
+          logPrintf("WiFi event: GOT_IP %s\n", WiFi.localIP().toString().c_str());
+          logPrintf("WiFi IP-Info: GW %s, MASK %s, DNS1 %s, DNS2 %s\n",
                         WiFi.gatewayIP().toString().c_str(),
                         WiFi.subnetMask().toString().c_str(),
                         WiFi.dnsIP(0).toString().c_str(),
@@ -246,14 +251,14 @@ void setup() {
           lastWiFiReconnectAttempt = 0;
           break;
         case ARDUINO_EVENT_WIFI_STA_LOST_IP:
-          Serial.println("WiFi event: LOST_IP");
+          logPrintln("WiFi event: LOST_IP");
           break;
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-          Serial.printf("WiFi event: DISCONNECTED (reason=%d %s)\n",
+          logPrintf("WiFi event: DISCONNECTED (reason=%d %s)\n",
                         info.wifi_sta_disconnected.reason,
                         wifiDisconnectReason(info.wifi_sta_disconnected.reason));
-          Serial.printf("WiFi SSID: %s\n", WiFi.SSID().c_str());
-          Serial.printf("WiFi status: %d, seit letzter Verbindung %lu ms, letzter Reconnect %lu ms\n",
+          logPrintf("WiFi SSID: %s\n", WiFi.SSID().c_str());
+          logPrintf("WiFi status: %d, seit letzter Verbindung %lu ms, letzter Reconnect %lu ms\n",
                         WiFi.status(),
                         millis() - lastWiFiConnected,
                         millis() - lastWiFiReconnectAttempt);
@@ -263,7 +268,7 @@ void setup() {
           lastWiFiReconnectAttempt = millis();
           break;
         default:
-          Serial.printf("WiFi event: %d\n", evt);
+          logPrintf("WiFi event: %d\n", evt);
           break;
       }
     }
@@ -271,28 +276,28 @@ void setup() {
 
   otaSetup();
   WiFi.setHostname(g_host.c_str());
-  Serial.println("OTA und Hostname konfiguriert");
+  logPrintln("OTA und Hostname konfiguriert");
 
   // Radar serial setup
-  Serial.print("Starte Radar auf RX=");
-  Serial.print(g_radarRxPin);
-  Serial.print(" TX=");
-  Serial.println(g_radarTxPin);
+  logPrint("Starte Radar auf RX=");
+  logPrint(g_radarRxPin);
+  logPrint(" TX=");
+  logPrintln(g_radarTxPin);
   Serial1.begin(256000, SERIAL_8N1,
                 g_radarRxPin.toInt(),
                 g_radarTxPin.toInt());
   delay(100);
 
-  Serial.println("Setze Radar-Parameter...");
+  logPrintln("Setze Radar-Parameter...");
   setMaxRadarRange(g_maxRangeMeters);
   enableMultiTargetMode();
-  Serial.println("Radar konfiguriert");
+  logPrintln("Radar konfiguriert");
 
   // MQTT setup
-  Serial.print("MQTT Server: ");
-  Serial.print(g_mqttServer);
-  Serial.print(":");
-  Serial.println(g_mqttPort);
+  logPrint("MQTT Server: ");
+  logPrint(g_mqttServer);
+  logPrint(":");
+  logPrintln(g_mqttPort);
   mqttClient.setServer(g_mqttServer.c_str(), g_mqttPort.toInt());
   mqttClient.setCallback(mqttCallback);
 
@@ -305,11 +310,11 @@ void setup() {
 
   // WebServer setup
   setupWebServer();
-  Serial.print("WebServer gestartet: http://");
-  Serial.println(WiFi.localIP());
+  logPrint("WebServer gestartet: http://");
+  logPrintln(WiFi.localIP().toString());
 
   lastRadarDataTime = millis();
-  Serial.println("Setup abgeschlossen - starte Loop");
+  logPrintln("Setup abgeschlossen - starte Loop");
 }
 
 // ---------------------------------------------------------
@@ -325,7 +330,7 @@ void loop() {
       bootPressed = true;
       bootPressStart = millis();
     } else if (millis() - bootPressStart > 3000) {
-      Serial.println("BOOT button pressed - starting config portal");
+      logPrintln("BOOT button pressed - starting config portal");
       startConfigPortal = true;
       bootPressed = false;
     }
@@ -337,8 +342,8 @@ void loop() {
   maintainWiFi();
   if (WiFi.status() != WL_CONNECTED &&
       millis() - lastWiFiCheck > 10000UL) {
-    Serial.print("WiFi not connected, status: ");
-    Serial.println(WiFi.status());
+    logPrint("WiFi not connected, status: ");
+    logPrintln(String(WiFi.status()));
     lastWiFiCheck = millis();
   }
 
@@ -387,7 +392,7 @@ void loop() {
 void handleMqttCommands() {
   if (startConfigPortal) {
     startConfigPortal = false;
-    Serial.println("MQTT 'config' → öffne Config‑Portal");
+    logPrintln("MQTT 'config' → öffne Config‑Portal");
     configPortalActive = true;
 
     stopWebServer();
@@ -400,7 +405,7 @@ void handleMqttCommands() {
 
     bool updated = syncConfigFromWiFiManager();
     setupWebServer();
-    Serial.println("Portal beendet → reconnect WIFI");
+    logPrintln("Portal beendet → reconnect WIFI");
     if (!portalOk) {
       WiFi.reconnect();
     }

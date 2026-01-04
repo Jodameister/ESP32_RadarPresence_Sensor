@@ -37,8 +37,8 @@ bool safePublishRetain(const char* topic, const char* payload) {
 }
 
 void processMqttCommand(const String& cmd) {
-  Serial.print("MQTT CMD: ");
-  Serial.println(cmd);
+  logPrint("MQTT CMD: ");
+  logPrintln(cmd);
 
   char ackTopic[MQTT_TOPIC_BUFFER_SIZE];
   buildMqttTopic("ack", ackTopic, sizeof(ackTopic));
@@ -109,8 +109,8 @@ void processMqttCommand(const String& cmd) {
     safePublish(ackTopic, helpMsg);
   }
   else {
-    Serial.print("Unknown command: ");
-    Serial.println(cmd);
+    logPrint("Unknown command: ");
+    logPrintln(cmd);
     safePublish(ackTopic, "ERROR: Unknown command. Send 'help' for available commands.");
   }
 }
@@ -129,7 +129,7 @@ void mqttReconnect() {
 
   lastAttempt = now;
 
-  Serial.print("MQTT reconnect... ");
+  logPrint("MQTT reconnect... ");
 
   // SICHERHEIT: Ohne String-Konkatenation
   char id[20];
@@ -148,7 +148,7 @@ void mqttReconnect() {
   );
 
   if (connected) {
-    Serial.println("OK");
+    logPrintln("OK");
 
     // SICHERHEIT: Ohne String-Konkatenation
     char cmdTopic[80];
@@ -158,7 +158,7 @@ void mqttReconnect() {
     // Sofort Status senden
     publishStatus();
   } else {
-    Serial.print("FAILED, rc=");
-    Serial.println(mqttClient.state());
+    logPrint("FAILED, rc=");
+    logPrintln(String(mqttClient.state()));
   }
 }

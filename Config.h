@@ -11,8 +11,10 @@
 
 // Constants
 #define MQTT_TOPIC_BUFFER_SIZE 80
-#define JSON_BUFFER_SIZE 512
+#define JSON_BUFFER_SIZE 1536
 #define RADAR_CMD_DELAY_US 50000  // 50ms in microseconds
+#define SERIAL_LOG_LINES 10
+#define SERIAL_LOG_LINE_LEN 96
 
 // Preferences & network clients
 extern Preferences  prefs;
@@ -42,6 +44,13 @@ void saveParamCallback();
 char* buildMqttTopic(const char* suffix, char* buffer, size_t bufsize);
 void nonBlockingDelay(unsigned long ms);
 void formatUptime(char* buffer, size_t bufsize);
+void logPrint(const char* msg);
+void logPrintln(const char* msg);
+void logPrint(const String& msg);
+void logPrintln(const String& msg);
+void logPrintf(const char* fmt, ...);
+uint8_t getSerialLogCount();
+void getSerialLogLine(uint8_t idx, char* buffer, size_t bufsize);
 
 // Radar internals
 struct RadarTarget {
@@ -61,6 +70,7 @@ extern const uint8_t     multiTargetCmd[12];
 extern RadarTarget       smoothed[3];
 extern unsigned long     lastSeenTime[3];
 extern unsigned long     lastZeroPub;
+extern char              g_lastBssid[18];
 // Radar frame constants (must be #define for array sizes)
 #define RADAR_FRAME_SIZE       30
 #define RADAR_TARGET_BLOCKSIZE 8

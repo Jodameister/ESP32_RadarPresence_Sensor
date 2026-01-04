@@ -44,7 +44,7 @@ bool readSensorAck(uint16_t expectedCmd, uint32_t timeoutMs) {
         uint16_t cmd    = cmdRaw & 0x00FF;
         if (cmd == expectedCmd || cmdRaw == expectedCmd) {
           if (st != 0) {
-            Serial.printf("Radar ACK 0x%04X status=%u\n", cmdRaw, st);
+            logPrintf("Radar ACK 0x%04X status=%u\n", cmdRaw, st);
           }
           return st == 0;
         }
@@ -54,7 +54,7 @@ bool readSensorAck(uint16_t expectedCmd, uint32_t timeoutMs) {
           continue;
         }
         // Unerwartetes ACK verwerfen und weiter warten
-        Serial.printf("Radar ACK unexpected cmd=0x%04X expecting 0x%04X\n", cmdRaw, expectedCmd);
+        logPrintf("Radar ACK unexpected cmd=0x%04X expecting 0x%04X\n", cmdRaw, expectedCmd);
         idx = 0;
       }
     }
@@ -147,7 +147,7 @@ void setHoldInterval(uint32_t ms) {
 }
 
 void restartRadarSerial() {
-  Serial.println("Restarting radar serial...");
+  logPrintln("Restarting radar serial...");
   radarSerialRestartCount++;
 
   // SICHERHEIT: Buffer leeren BEVOR Serial1.end()
@@ -187,7 +187,7 @@ void restartRadarSerial() {
   char topic[MQTT_TOPIC_BUFFER_SIZE];
   buildMqttTopic("ack", topic, sizeof(topic));
   safePublish(topic, "resetRadar→OK");
-  Serial.println("Radar serial restarted");
+  logPrintln("Radar serial restarted");
 }
 
 void parseRadarFrame(const uint8_t* buf, uint8_t len) {
@@ -201,8 +201,8 @@ void parseRadarFrame(const uint8_t* buf, uint8_t len) {
 
     // SICHERHEIT: Bounds-Check
     if (offset + RADAR_TARGET_BLOCKSIZE > len) {
-      Serial.print("WARN: parseRadarFrame offset out of bounds: ");
-      Serial.println(offset);
+      logPrint("WARN: parseRadarFrame offset out of bounds: ");
+      logPrintln(String(offset));
       break;
     }
 
@@ -269,7 +269,7 @@ void readRadarData() {
     // SICHERHEIT: Buffer-Overflow-Schutz BEVOR wir schreiben
     if (radarCount >= sizeof(radarBuf)) {
       radarCount = 0;
-      Serial.println("WARN: radarBuf overflow reset");
+      logPrintln("WARN: radarBuf overflow reset");
     }
 
     uint8_t byte = Serial1.read();
@@ -322,8 +322,8 @@ void readRadarData() {
         }
       } else if (radarCount > RADAR_FRAME_SIZE) {
         // SICHERHEIT: Ungültiger Frame zu lang
-        Serial.print("WARN: Invalid frame size: ");
-        Serial.println(radarCount);
+        logPrint("WARN: Invalid frame size: ");
+        logPrintln(String(radarCount));
       }
 
       radarCount = 0;
@@ -366,7 +366,7 @@ void publishRadarJson() {
   }
 
   if (!safePublish(g_mqttTopic.c_str(), buf)) {
-    Serial.println("WARN: MQTT publish radar failed");
+    logPrintln("WARN: MQTT publish radar failed");
   }
 }
 
@@ -418,9 +418,9 @@ void publishStatus() {
   buildMqttTopic("status", statusTopic, sizeof(statusTopic));
 
   if (!safePublishRetain(statusTopic, buf)) {
-    Serial.println("WARN: MQTT publish status failed");
+    logPrintln("WARN: MQTT publish status failed");
   } else {
-    Serial.println("Status published");
+    logPrintln("Status published");
   }
 }
 
