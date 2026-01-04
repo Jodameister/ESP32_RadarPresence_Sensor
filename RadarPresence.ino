@@ -385,9 +385,7 @@ void loop() {
   }
 
   // Command handling
-  if (wifiConnected) {
-    handleMqttCommands();
-  }
+  handleMqttCommands();
   checkRadarConnection();
 
   delay(1);
@@ -422,7 +420,7 @@ void handleMqttCommands() {
       wifiReconnectIssued = true;
       lastWiFiReconnectAttempt = millis();
     }
-    if (updated || portalOk) {
+    if ((updated || portalOk) && WiFi.status() == WL_CONNECTED) {
       mqttReconnect();
     }
   }

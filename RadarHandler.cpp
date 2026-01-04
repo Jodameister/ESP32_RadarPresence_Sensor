@@ -419,8 +419,6 @@ void publishStatus() {
 
   if (!safePublishRetain(statusTopic, buf)) {
     logPrintln("WARN: MQTT publish status failed");
-  } else {
-    logPrintln("Status published");
   }
 }
 

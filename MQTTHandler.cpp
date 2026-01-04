@@ -45,7 +45,7 @@ bool safePublish(const char* topic, const char* payload) {
     return false;
   }
   if (!mqttClient.publish(topic, payload)) {
-    logMqttDiag("MQTT publish failed", topic, payload, false);
+    logMqttDiag("MQTT publish post (failed)", topic, payload, false);
     return false;
   }
   return true;
@@ -57,7 +57,7 @@ bool safePublishRetain(const char* topic, const char* payload) {
     return false;
   }
   if (!mqttClient.publish(topic, payload, true)) {
-    logMqttDiag("MQTT retain publish failed", topic, payload, true);
+    logMqttDiag("MQTT retain publish post (failed)", topic, payload, true);
     return false;
   }
   return true;
