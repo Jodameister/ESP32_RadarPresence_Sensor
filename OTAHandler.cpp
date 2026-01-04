@@ -4,6 +4,10 @@
 #include <ArduinoOTA.h>
 
 void otaSetup() {
+  if (!otaEnabled) {
+    logPrintln("OTA deaktiviert");
+    return;
+  }
   ArduinoOTA.onStart([](){ otaInProgress = true; });
   ArduinoOTA.onEnd(  [](){ otaInProgress = false; });
   ArduinoOTA.onProgress([](unsigned int p, unsigned int t){

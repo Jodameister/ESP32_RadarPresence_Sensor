@@ -7,7 +7,7 @@
 #include <PubSubClient.h>
 
 // Version
-#define FW_VERSION "v1.7"
+#define FW_VERSION "v1.8"
 
 // Constants
 #define MQTT_TOPIC_BUFFER_SIZE 80
@@ -65,6 +65,11 @@ extern unsigned long     serialResetTime;
 extern uint32_t          wifiReconnectCount, radarTimeoutCount, radarSerialRestartCount;
 extern bool              wifiReconnectIssued;
 extern bool              configPortalActive;
+// Debug-Schalter
+extern bool              webServerEnabled;
+extern bool              otaEnabled;
+extern bool              radarSerialRestartEnabled;
+extern bool              mqttTelemetryEnabled;
 extern const float       ALPHA, RANGE_GATE_SIZE;
 extern const uint8_t     multiTargetCmd[12];
 extern RadarTarget       smoothed[3];

@@ -1,9 +1,26 @@
 // File: MQTTHandler.cpp
 
 #include "MQTTHandler.h"
+#include <string.h>
 #include "Config.h"
 #include "RadarHandler.h"
 #include "WebServerHandler.h"
+
+static void logMqttDiag(const char* prefix, const char* topic, const char* payload, bool retain) {
+  size_t len = payload ? strlen(payload) : 0;
+  logPrintf("%s topic=%s len=%u retain=%d\n",
+            prefix,
+            topic ? topic : "(null)",
+            static_cast<unsigned int>(len),
+            retain ? 1 : 0);
+  logPrintf("MQTT state=%d connected=%d\n", mqttClient.state(), mqttClient.connected() ? 1 : 0);
+  logPrintf("WiFi status=%d RSSI=%d CH=%d BSSID=%s IP=%s\n",
+            WiFi.status(),
+            WiFi.RSSI(),
+            WiFi.channel(),
+            (g_lastBssid[0] != '\0') ? g_lastBssid : "n/a",
+            WiFi.localIP().toString().c_str());
+}
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   // SICHERHEIT: Effizienter ohne String-Konkatenation
@@ -24,16 +41,26 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 bool safePublish(const char* topic, const char* payload) {
   if (!mqttClient.connected()) {
+    logMqttDiag("MQTT publish blocked (disconnected)", topic, payload, false);
     return false;
   }
-  return mqttClient.publish(topic, payload);
+  if (!mqttClient.publish(topic, payload)) {
+    logMqttDiag("MQTT publish failed", topic, payload, false);
+    return false;
+  }
+  return true;
 }
 
 bool safePublishRetain(const char* topic, const char* payload) {
   if (!mqttClient.connected()) {
+    logMqttDiag("MQTT retain publish blocked (disconnected)", topic, payload, true);
     return false;
   }
-  return mqttClient.publish(topic, payload, true);
+  if (!mqttClient.publish(topic, payload, true)) {
+    logMqttDiag("MQTT retain publish failed", topic, payload, true);
+    return false;
+  }
+  return true;
 }
 
 void processMqttCommand(const String& cmd) {
@@ -79,11 +106,17 @@ void processMqttCommand(const String& cmd) {
     }
   }
   else if (cmd == "getStatus") {
-    publishStatus();
-    safePublish(ackTopic, "getStatus OK");
+    if (!mqttTelemetryEnabled) {
+      safePublish(ackTopic, "getStatus ERROR: telemetry disabled");
+    } else {
+      publishStatus();
+      safePublish(ackTopic, "getStatus OK");
+    }
   }
   else if (cmd == "webServer:on") {
-    if (configPortalActive) {
+    if (!webServerEnabled) {
+      safePublish(ackTopic, "webServer ERROR: disabled");
+    } else if (configPortalActive) {
       safePublish(ackTopic, "webServer ERROR: config portal active");
     } else {
       setupWebServer();
@@ -91,8 +124,12 @@ void processMqttCommand(const String& cmd) {
     }
   }
   else if (cmd == "webServer:off") {
-    stopWebServer();
-    safePublish(ackTopic, "webServer OFF");
+    if (!webServerEnabled) {
+      safePublish(ackTopic, "webServer ERROR: disabled");
+    } else {
+      stopWebServer();
+      safePublish(ackTopic, "webServer OFF");
+    }
   }
   else if (cmd == "help") {
     const char* helpMsg =
@@ -106,6 +143,9 @@ void processMqttCommand(const String& cmd) {
       "webServer:on - Start HTTP status server\n"
       "webServer:off - Stop HTTP status server\n"
       "help - Show this help";
+    if (!webServerEnabled) {
+      safePublish(ackTopic, "Hinweis: WebServer ist aktuell deaktiviert");
+    }
     safePublish(ackTopic, helpMsg);
   }
   else {
@@ -117,6 +157,7 @@ void processMqttCommand(const String& cmd) {
 
 void mqttReconnect() {
   static unsigned long lastAttempt = 0;
+  static uint32_t attemptCount = 0;
   const unsigned long RECONNECT_INTERVAL = 5000; // 5 Sekunden zwischen Versuchen
 
   if (WiFi.status() != WL_CONNECTED) return;
@@ -128,8 +169,15 @@ void mqttReconnect() {
   }
 
   lastAttempt = now;
+  attemptCount++;
 
-  logPrint("MQTT reconnect... ");
+  logPrintf("MQTT reconnect #%lu... ", attemptCount);
+  logPrintf("WiFi status=%d RSSI=%d CH=%d BSSID=%s IP=%s\n",
+            WiFi.status(),
+            WiFi.RSSI(),
+            WiFi.channel(),
+            (g_lastBssid[0] != '\0') ? g_lastBssid : "n/a",
+            WiFi.localIP().toString().c_str());
 
   // SICHERHEIT: Ohne String-Konkatenation
   char id[20];
@@ -148,7 +196,8 @@ void mqttReconnect() {
   );
 
   if (connected) {
-    logPrintln("OK");
+    logPrintf("MQTT connected OK id=%s host=%s:%s\n",
+              id, g_mqttServer.c_str(), g_mqttPort.c_str());
 
     // SICHERHEIT: Ohne String-Konkatenation
     char cmdTopic[80];
@@ -158,7 +207,7 @@ void mqttReconnect() {
     // Sofort Status senden
     publishStatus();
   } else {
-    logPrint("FAILED, rc=");
-    logPrintln(String(mqttClient.state()));
+    logPrintf("MQTT connect FAILED rc=%d\n", mqttClient.state());
+    logMqttDiag("MQTT connect failed diag", g_mqttTopic.c_str(), nullptr, false);
   }
 }

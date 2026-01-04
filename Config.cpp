@@ -50,8 +50,14 @@ unsigned long  serialResetTime      = 0;
 uint32_t       wifiReconnectCount   = 0;
 uint32_t       radarTimeoutCount    = 0;
 uint32_t       radarSerialRestartCount = 0;
-bool           wifiReconnectIssued  = false;
-bool           configPortalActive   = false;
+bool           wifiReconnectIssued  = false; // Signalisiert, dass ein WiFi-Reconnect ausgelöst wurde
+bool           configPortalActive   = false; // Zeigt an, ob das WiFi-Config-Portal gerade läuft
+
+// Debug-Schalter
+bool           webServerEnabled     = true;  // Aktiviert/Deaktiviert den HTTP-Status-Webserver
+bool           otaEnabled           = true;  // Aktiviert/Deaktiviert OTA-Updates
+bool           radarSerialRestartEnabled = true; // Erlaubt/Verbietet automatischen Radar-Serial-Restart
+bool           mqttTelemetryEnabled = true; // Schaltet periodische MQTT-Telemetrie (Radar/Status) ein/aus
 
 const float    ALPHA             = 0.4f;
 const float    RANGE_GATE_SIZE   = 0.7f;

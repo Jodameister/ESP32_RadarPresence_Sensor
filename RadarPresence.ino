@@ -46,7 +46,6 @@ bool syncConfigFromWiFiManager();
 const char* wifiDisconnectReason(uint8_t reason);
 const char* wifiAuthModeName(wifi_auth_mode_t auth);
 void logApInfo(const char* prefix);
-unsigned long lastWiFiConnectEvent = 0;
 
 const char* wifiDisconnectReason(uint8_t reason) {
   switch (reason) {
@@ -117,26 +116,13 @@ void logApInfo(const char* prefix) {
 
 void maintainWiFi() {
   if (configPortalActive) return;
-  static const unsigned long WIFI_RECONNECT_INTERVAL = 15000UL;
   static const unsigned long WIFI_MAX_OUTAGE = 300000UL; // 5 minutes
-  static const unsigned long WIFI_CONNECT_GRACE = 10000UL; // 10 seconds
   unsigned long now = millis();
 
   if (WiFi.status() == WL_CONNECTED) {
     lastWiFiConnected = now;
+    wifiReconnectIssued = false;
     return;
-  }
-
-  if (lastWiFiConnectEvent != 0 && (now - lastWiFiConnectEvent) < WIFI_CONNECT_GRACE) {
-    return;
-  }
-
-  if (!wifiReconnectIssued || (now - lastWiFiReconnectAttempt) > WIFI_RECONNECT_INTERVAL) {
-    logPrintln("WiFi offline → attempting reconnect");
-    logPrintf("WiFi reconnect SSID: %s\n", WiFi.SSID().c_str());
-    wifiReconnectIssued = true;
-    lastWiFiReconnectAttempt = now;
-    WiFi.reconnect();
   }
 
   if (now - lastWiFiConnected > WIFI_MAX_OUTAGE) {
@@ -182,8 +168,10 @@ bool syncConfigFromWiFiManager() {
     mqttClient.disconnect();
     mqttClient.setServer(g_mqttServer.c_str(), g_mqttPort.toInt());
     WiFi.setHostname(g_host.c_str());
-    ArduinoOTA.setHostname(g_host.c_str());
-    ArduinoOTA.setPassword(g_otaPass.c_str());
+    if (otaEnabled) {
+      ArduinoOTA.setHostname(g_host.c_str());
+      ArduinoOTA.setPassword(g_otaPass.c_str());
+    }
     logPrintln("Konfiguration aus Portal übernommen");
   }
   return changed;
@@ -233,7 +221,6 @@ void setup() {
           logPrintf("WiFi event: CONNECTED to %s\n",
                         reinterpret_cast<const char*>(info.wifi_sta_connected.ssid));
           logApInfo("WiFi AP");
-          lastWiFiConnectEvent = millis();
           wifiReconnectIssued = false;
           lastWiFiReconnectAttempt = 0;
           break;
@@ -246,7 +233,6 @@ void setup() {
                         WiFi.dnsIP(1).toString().c_str());
           logApInfo("WiFi AP");
           lastWiFiConnected = millis();
-          lastWiFiConnectEvent = 0;
           wifiReconnectIssued = false;
           lastWiFiReconnectAttempt = 0;
           break;
@@ -254,18 +240,27 @@ void setup() {
           logPrintln("WiFi event: LOST_IP");
           break;
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-          logPrintf("WiFi event: DISCONNECTED (reason=%d %s)\n",
+          logPrintf("WiFi event: DISCONNECTED (reason=%d/0x%02X %s)\n",
+                        info.wifi_sta_disconnected.reason,
                         info.wifi_sta_disconnected.reason,
                         wifiDisconnectReason(info.wifi_sta_disconnected.reason));
           logPrintf("WiFi SSID: %s\n", WiFi.SSID().c_str());
-          logPrintf("WiFi status: %d, seit letzter Verbindung %lu ms, letzter Reconnect %lu ms\n",
-                        WiFi.status(),
-                        millis() - lastWiFiConnected,
-                        millis() - lastWiFiReconnectAttempt);
+          logPrintf("WiFi RSSI: %d, CH: %d, last BSSID: %s\n",
+                        WiFi.RSSI(),
+                        WiFi.channel(),
+                        (g_lastBssid[0] != '\0') ? g_lastBssid : "n/a");
+          if (lastWiFiReconnectAttempt == 0) {
+            logPrintf("WiFi status: %d, seit letzter Verbindung %lu ms, letzter Reconnect-Trigger: nie\n",
+                          WiFi.status(),
+                          millis() - lastWiFiConnected);
+          } else {
+            logPrintf("WiFi status: %d, seit letzter Verbindung %lu ms, letzter Reconnect-Trigger %lu ms\n",
+                          WiFi.status(),
+                          millis() - lastWiFiConnected,
+                          millis() - lastWiFiReconnectAttempt);
+          }
           logApInfo("WiFi last AP");
           wifiReconnectCount++;
-          wifiReconnectIssued = true;
-          lastWiFiReconnectAttempt = millis();
           break;
         default:
           logPrintf("WiFi event: %d\n", evt);
@@ -276,7 +271,11 @@ void setup() {
 
   otaSetup();
   WiFi.setHostname(g_host.c_str());
-  logPrintln("OTA und Hostname konfiguriert");
+  if (otaEnabled) {
+    logPrintln("OTA und Hostname konfiguriert");
+  } else {
+    logPrintln("OTA deaktiviert, Hostname konfiguriert");
+  }
 
   // Radar serial setup
   logPrint("Starte Radar auf RX=");
@@ -309,9 +308,13 @@ void setup() {
   mqttReconnect();
 
   // WebServer setup
-  setupWebServer();
-  logPrint("WebServer gestartet: http://");
-  logPrintln(WiFi.localIP().toString());
+  if (webServerEnabled) {
+    setupWebServer();
+    logPrint("WebServer gestartet: http://");
+    logPrintln(WiFi.localIP().toString());
+  } else {
+    logPrintln("WebServer deaktiviert");
+  }
 
   lastRadarDataTime = millis();
   logPrintln("Setup abgeschlossen - starte Loop");
@@ -348,11 +351,15 @@ void loop() {
   }
 
   // OTA handling
-  ArduinoOTA.handle();
-  if (otaInProgress) return;
+  if (otaEnabled) {
+    ArduinoOTA.handle();
+    if (otaInProgress) return;
+  }
 
   // WebServer
-  handleWebServer();
+  if (webServerEnabled) {
+    handleWebServer();
+  }
 
   // MQTT
   bool wifiConnected = (WiFi.status() == WL_CONNECTED);
@@ -366,7 +373,7 @@ void loop() {
 
   // Publishing
   unsigned long now = millis();
-  if (wifiConnected) {
+  if (wifiConnected && mqttTelemetryEnabled) {
     if (now - lastRadarPub >= RADAR_INTERVAL_MS) {
       lastRadarPub = now;
       publishRadarJson();
@@ -395,7 +402,9 @@ void handleMqttCommands() {
     logPrintln("MQTT 'config' → öffne Config‑Portal");
     configPortalActive = true;
 
-    stopWebServer();
+    if (webServerEnabled) {
+      stopWebServer();
+    }
     mqttClient.disconnect();
 
     WiFiManager wm2;
@@ -404,13 +413,15 @@ void handleMqttCommands() {
     configPortalActive = false;
 
     bool updated = syncConfigFromWiFiManager();
-    setupWebServer();
+    if (webServerEnabled) {
+      setupWebServer();
+    }
     logPrintln("Portal beendet → reconnect WIFI");
     if (!portalOk) {
       WiFi.reconnect();
+      wifiReconnectIssued = true;
+      lastWiFiReconnectAttempt = millis();
     }
-    wifiReconnectIssued = false;
-    lastWiFiReconnectAttempt = 0;
     if (updated || portalOk) {
       mqttReconnect();
     }

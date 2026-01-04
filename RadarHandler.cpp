@@ -427,12 +427,16 @@ void publishStatus() {
 void checkRadarConnection() {
   if (millis() - lastRadarDataTime > NO_DATA_TIMEOUT) {
     if (!serialResetAttempted) {
-      restartRadarSerial();
+      if (radarSerialRestartEnabled) {
+        restartRadarSerial();
+      } else {
+        logPrintln("Radar serial restart disabled (debug)");
+      }
       serialResetAttempted = true;
       serialResetTime     = millis();
       radarTimeoutCount++;
     }
-    else if (millis() - serialResetTime > RESTART_TIMEOUT) {
+    else if (radarSerialRestartEnabled && millis() - serialResetTime > RESTART_TIMEOUT) {
       ESP.restart();
     }
   } else {
