@@ -28,6 +28,29 @@ static const char* resetReasonToString(esp_reset_reason_t reason) {
   }
 }
 
+static int hexNibble(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+  if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+  return -1;
+}
+
+static bool parseBssidString(const char* str, uint8_t out[6]) {
+  if (!str) return false;
+  for (int i = 0; i < 6; i++) {
+    int hi = hexNibble(str[i * 3]);
+    int lo = hexNibble(str[i * 3 + 1]);
+    if (hi < 0 || lo < 0) return false;
+    out[i] = static_cast<uint8_t>((hi << 4) | lo);
+    if (i < 5 && str[i * 3 + 2] != ':') return false;
+  }
+  return true;
+}
+
+static bool bssidEquals(const uint8_t a[6], const uint8_t b[6]) {
+  return memcmp(a, b, 6) == 0;
+}
+
 // Track SSE clients
 struct SSEClient {
   WiFiClient client;
@@ -625,6 +648,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     let resizePending = false;
     let fallbackTimer = null;
     let eventSource = null;
+    let sseWatchdogTimer = null;
+    let lastSseEventAt = 0;
+    const SSE_STALE_MS = 8000;
     let invertXAxis = false;
     let lastRadarPayload = null;
 
@@ -837,8 +863,27 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
     function startPollingFallback() {
       if (fallbackTimer) return;
+      if (sseWatchdogTimer) {
+        clearInterval(sseWatchdogTimer);
+        sseWatchdogTimer = null;
+      }
       fetchData();
       fallbackTimer = setInterval(fetchData, 1000);
+    }
+
+    function startSseWatchdog() {
+      if (sseWatchdogTimer) {
+        clearInterval(sseWatchdogTimer);
+      }
+      sseWatchdogTimer = setInterval(() => {
+        if (!eventSource) return;
+        if (Date.now() - lastSseEventAt > SSE_STALE_MS) {
+          console.warn('SSE stale, reconnecting');
+          eventSource.close();
+          eventSource = null;
+          setTimeout(setupRealtime, 500);
+        }
+      }, 2000);
     }
 
     function setupRealtime() {
@@ -854,14 +899,18 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       if (eventSource) {
         eventSource.close();
       }
+      lastSseEventAt = Date.now();
+      startSseWatchdog();
       eventSource = new EventSource('/events');
       eventSource.onopen = () => {
         statusEl.className = 'connected';
+        lastSseEventAt = Date.now();
       };
       eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
           statusEl.className = 'connected';
+          lastSseEventAt = Date.now();
           updateRadar(payload);
         } catch (e) {
           console.error('SSE parse error', e);
@@ -1111,26 +1160,36 @@ static size_t buildRadarJson(char* buffer, size_t bufsize) {
   doc["holdMs"] = g_holdIntervalMs;
   char bssidBuf[18];
   bssidBuf[0] = '\0';
+  uint8_t bssidBytes[6] = {0};
+  bool haveBssidBytes = false;
   if (WiFi.status() == WL_CONNECTED && WiFi.BSSID() != nullptr) {
-    uint8_t bssidRaw[6];
-    memcpy(bssidRaw, WiFi.BSSID(), sizeof(bssidRaw));
+    memcpy(bssidBytes, WiFi.BSSID(), sizeof(bssidBytes));
+    haveBssidBytes = true;
     snprintf(bssidBuf, sizeof(bssidBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
-             bssidRaw[0], bssidRaw[1], bssidRaw[2],
-             bssidRaw[3], bssidRaw[4], bssidRaw[5]);
+             bssidBytes[0], bssidBytes[1], bssidBytes[2],
+             bssidBytes[3], bssidBytes[4], bssidBytes[5]);
     strncpy(g_lastBssid, bssidBuf, sizeof(g_lastBssid) - 1);
     g_lastBssid[sizeof(g_lastBssid) - 1] = '\0';
   } else if (g_lastBssid[0] != '\0') {
     strncpy(bssidBuf, g_lastBssid, sizeof(bssidBuf) - 1);
     bssidBuf[sizeof(bssidBuf) - 1] = '\0';
+    if (parseBssidString(bssidBuf, bssidBytes)) {
+      haveBssidBytes = true;
+    }
   }
   doc["bssid"] = (bssidBuf[0] != '\0') ? bssidBuf : "-";
   const char* apName = "-";
-  if (strcmp(bssidBuf, "A8:42:A1:5F:78:98") == 0) {
-    apName = "AP-Flur";
-  } else if (strcmp(bssidBuf, "A8:42:A1:5F:78:AE") == 0) {
-    apName = "AP-Wohnzimmer";
-  } else if (strcmp(bssidBuf, "A8:42:A1:5F:78:CE") == 0) {
-    apName = "AP-Kueche";
+  if (haveBssidBytes) {
+    const uint8_t apFlur[6]       = {0xAE,0x42,0xA1,0x5F,0x78,0x98};
+    const uint8_t apWohnzimmer[6] = {0xAE,0x42,0xA1,0x5F,0x78,0xAE};
+    const uint8_t apKueche[6]     = {0xAE,0x42,0xA1,0x5F,0x78,0xCE};
+    if (bssidEquals(bssidBytes, apFlur)) {
+      apName = "AP-Flur";
+    } else if (bssidEquals(bssidBytes, apWohnzimmer)) {
+      apName = "AP-Wohnzimmer";
+    } else if (bssidEquals(bssidBytes, apKueche)) {
+      apName = "AP-Kueche";
+    }
   }
   doc["apName"] = apName;
 

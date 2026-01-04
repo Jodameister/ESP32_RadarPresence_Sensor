@@ -7,6 +7,20 @@
 #include "WebServerHandler.h"
 
 static void logMqttDiag(const char* prefix, const char* topic, const char* payload, bool retain) {
+  char bssidBuf[18];
+  bssidBuf[0] = '\0';
+  if (WiFi.status() == WL_CONNECTED && WiFi.BSSID() != nullptr) {
+    const uint8_t* bssidRaw = WiFi.BSSID();
+    snprintf(bssidBuf, sizeof(bssidBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
+             bssidRaw[0], bssidRaw[1], bssidRaw[2],
+             bssidRaw[3], bssidRaw[4], bssidRaw[5]);
+    strncpy(g_lastBssid, bssidBuf, sizeof(g_lastBssid) - 1);
+    g_lastBssid[sizeof(g_lastBssid) - 1] = '\0';
+  } else if (g_lastBssid[0] != '\0') {
+    strncpy(bssidBuf, g_lastBssid, sizeof(bssidBuf) - 1);
+    bssidBuf[sizeof(bssidBuf) - 1] = '\0';
+  }
+
   size_t len = payload ? strlen(payload) : 0;
   logPrintf("%s topic=%s len=%u retain=%d\n",
             prefix,
@@ -18,7 +32,7 @@ static void logMqttDiag(const char* prefix, const char* topic, const char* paylo
             WiFi.status(),
             WiFi.RSSI(),
             WiFi.channel(),
-            (g_lastBssid[0] != '\0') ? g_lastBssid : "n/a",
+            (bssidBuf[0] != '\0') ? bssidBuf : "n/a",
             WiFi.localIP().toString().c_str());
 }
 

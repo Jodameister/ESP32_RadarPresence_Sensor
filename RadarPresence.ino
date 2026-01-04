@@ -154,10 +154,14 @@ void setupWiFiManagerParams(WiFiManager& wm) {
 
 bool syncConfigFromWiFiManager() {
   bool changed = false;
+  bool hostChanged = false;
   for (size_t i = 0; i < sizeof(paramInfos) / sizeof(paramInfos[0]); i++) {
     const char* value = paramObjects[i].getValue();
     if (!value) continue;
     if (paramInfos[i].val != value) {
+      if (paramInfos[i].id && strcmp(paramInfos[i].id, "host") == 0) {
+        hostChanged = true;
+      }
       paramInfos[i].val = value;
       changed = true;
     }
@@ -167,7 +171,15 @@ bool syncConfigFromWiFiManager() {
     saveParamCallback();
     mqttClient.disconnect();
     mqttClient.setServer(g_mqttServer.c_str(), g_mqttPort.toInt());
+    if (hostChanged) {
+      logPrintln("Hostname geaendert -> WiFi reconnect");
+      WiFi.disconnect(false);
+      delay(100);
+    }
     WiFi.setHostname(g_host.c_str());
+    if (hostChanged) {
+      WiFi.reconnect();
+    }
     if (otaEnabled) {
       ArduinoOTA.setHostname(g_host.c_str());
       ArduinoOTA.setPassword(g_otaPass.c_str());
@@ -198,6 +210,8 @@ void setup() {
   // WiFi setup
   WiFiManager wm;
   configureWiFiManager(wm);
+  WiFi.setHostname(g_host.c_str());
+  logPrintln("WiFi Hostname gesetzt (vor connect)");
   bool ok = wm.autoConnect("AutoConnectAP","12345678");
   logPrintln(ok ? "WiFi verbunden" : "WiFiManager Timeout");
   if (ok) WiFi.setTxPower(WIFI_POWER_19_5dBm);
@@ -327,18 +341,26 @@ void loop() {
   // Check BOOT button for config portal (hold for 3 seconds)
   static unsigned long bootPressStart = 0;
   static bool bootPressed = false;
+  static bool bootTriggered = false;
 
   if (digitalRead(RADAR_BOOT_PIN) == LOW) {
     if (!bootPressed) {
       bootPressed = true;
       bootPressStart = millis();
+      logPrintln("BOOT gedrueckt");
     } else if (millis() - bootPressStart > 3000) {
-      logPrintln("BOOT button pressed - starting config portal");
-      startConfigPortal = true;
-      bootPressed = false;
+      if (!bootTriggered) {
+        logPrintln("BOOT gehalten -> Config-Portal anfordern");
+        startConfigPortal = true;
+        bootTriggered = true;
+      }
     }
   } else {
     bootPressed = false;
+    if (bootTriggered) {
+      logPrintln("BOOT losgelassen");
+    }
+    bootTriggered = false;
   }
 
   // WiFi connection monitoring (Auto-reconnect ist aktiv via setAutoReconnect)
@@ -397,7 +419,8 @@ void loop() {
 void handleMqttCommands() {
   if (startConfigPortal) {
     startConfigPortal = false;
-    logPrintln("MQTT 'config' → öffne Config‑Portal");
+    logPrintln("Config-Portal Start");
+    logPrintf("Config-Portal: WiFi status %d, RSSI %d\n", WiFi.status(), WiFi.RSSI());
     configPortalActive = true;
 
     if (webServerEnabled) {
@@ -405,10 +428,16 @@ void handleMqttCommands() {
     }
     mqttClient.disconnect();
 
+    WiFi.disconnect(true);
+    delay(100);
+    WiFi.mode(WIFI_AP_STA);
+    logPrintln("Config-Portal: WiFi getrennt, AP+STA aktiv");
+
     WiFiManager wm2;
     configureWiFiManager(wm2);
     bool portalOk = wm2.startConfigPortal("OnDemandAP","12345678");
     configPortalActive = false;
+    logPrintf("Config-Portal beendet, ok=%d\n", portalOk ? 1 : 0);
 
     bool updated = syncConfigFromWiFiManager();
     if (webServerEnabled) {
